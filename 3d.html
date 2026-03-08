@@ -2,38 +2,54 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice - TETRIS 3D</title>
+    <title>IP-callservice - TETRIS 3D NORMAL</title>
     <style>
-        body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        body { margin: 0; background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; display: flex; justify-content: space-between; padding: 20px; box-sizing: border-box;
+            text-shadow: 2px 2px 4px #000;
         }
-        .panel { pointer-events: auto; background: rgba(20, 0, 0, 0.8); padding: 15px; border: 2px solid #ff0000; border-radius: 8px; width: 120px; height: fit-content; }
-        .label { font-size: 10px; color: #844; text-transform: uppercase; }
-        .value { font-size: 24px; font-weight: bold; color: #f33; }
-        #next-container { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .next-preview { width: 80px; height: 80px; background: #000; border: 1px solid #311; }
-        canvas { display: block; }
+        .panel { pointer-events: auto; background: rgba(0, 0, 0, 0.7); padding: 15px; border: 2px solid #444; border-radius: 8px; width: 140px; }
+        .label { font-size: 12px; color: #aaa; text-transform: uppercase; margin-bottom: 5px; }
+        .value { font-size: 28px; font-weight: bold; color: #0cf; }
+        #next-container { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .next-preview { font-size: 18px; font-weight: bold; padding: 5px; text-align: center; border-bottom: 1px solid #222; }
+        
+        /* 設定モーダル */
+        .settings-btn { pointer-events: auto; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 5px; }
+        #settings-modal { 
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #222; padding: 25px; border: 2px solid #0cf; border-radius: 10px; z-index: 100;
+            width: 320px; box-shadow: 0 0 50px rgba(0,0,0,1); pointer-events: auto;
+        }
+        .key-row { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .key-input { color: #0cf; font-weight: bold; min-width: 80px; text-align: right; cursor: pointer; }
+        .close-btn { width: 100%; margin-top: 20px; padding: 12px; background: #0cf; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 5px; }
     </style>
 </head>
 <body>
 
 <div id="ui-layer">
     <div class="panel">
-        <div class="label">LEVEL</div><div id="level" class="value">28</div>
+        <div class="label">LEVEL</div><div id="level" class="value">1</div>
         <div style="margin-top:20px" class="label">HOLD</div>
-        <div id="hold-box" class="next-preview"></div>
+        <div id="hold-box" class="next-preview">NONE</div>
     </div>
     
     <div class="panel">
         <div class="label">SCORE</div><div id="score" class="value">0</div>
-        <div style="margin-top:20px" class="label">NEXT (2)</div>
-        <div id="next-container">
-            <div id="next1" class="next-preview"></div>
-            <div id="next2" class="next-preview"></div>
-        </div>
+        <div style="margin-top:20px" class="label">NEXT</div>
+        <div id="next-container"></div>
     </div>
+</div>
+
+<button class="settings-btn" onclick="openSettings()">CONTROLS</button>
+
+<div id="settings-modal">
+    <h2 style="margin-top:0; font-size:18px; color:#0cf">KEY CONFIG</h2>
+    <div id="config-list"></div>
+    <button class="close-btn" onclick="closeSettings()">SAVE & EXIT</button>
 </div>
 
 <script type="importmap">
@@ -43,12 +59,16 @@
 <script type="module">
 import * as THREE from 'three';
 
-// --- ゲームロジック変数 ---
-let level = 28, score = 0, linesCleared = 270;
+// --- ゲームデータ ---
 const ROWS = 20, COLS = 10;
 let arena = Array.from({length: ROWS}, () => new Array(COLS).fill(0));
-let bag = [], nextQueue = [];
-let lockDelay = 0;
+let level = 1, score = 0, linesCleared = 0;
+let bag = [], nextQueue = [], keys = {};
+let binds = JSON.parse(localStorage.getItem('tetris_binds')) || {
+    left: 'ArrowLeft', right: 'ArrowRight', softDrop: 'ArrowDown',
+    hardDrop: ' ', rotateRight: 'ArrowUp', rotateLeft: 'q', hold: 'c'
+};
+
 const PIECES = {
     'I': { m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], c: 0x00ffff },
     'J': { m: [[2,0,0],[2,2,2],[0,0,0]], c: 0x0000ff },
@@ -61,51 +81,62 @@ const PIECES = {
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true };
 
-// --- Three.js セットアップ ---
+// --- Three.js レンダリング ---
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// ライティング
-const light = new THREE.PointLight(0xffffff, 100);
-light.position.set(5, 10, 10);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040, 2));
+// 明るいライト設定
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // 環境光を強く
+scene.add(ambientLight);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+directionalLight.position.set(5, 10, 7);
+scene.add(directionalLight);
 
-// フィールドの枠
-const gridHelper = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(COLS, ROWS, 1)));
-gridHelper.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, 0);
-scene.add(gridHelper);
+// カメラ位置（2D感覚で遊べるように固定）
+camera.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, 22);
+camera.lookAt(COLS/2 - 0.5, -ROWS/2 + 0.5, 0);
 
-camera.position.set(COLS/2, -ROWS/2, 15);
-camera.lookAt(COLS/2, -ROWS/2, 0);
-
-// ブロック描画用
 let cubes = [];
 function updateScene() {
     cubes.forEach(c => scene.remove(c));
     cubes = [];
 
-    // アリーナの描画
-    arena.forEach((row, y) => {
-        row.forEach((val, x) => {
-            if (val > 0) addCube(x, -y, 0, getPieceColor(val));
-        });
-    });
+    // 背景枠
+    const bgGeo = new THREE.PlaneGeometry(COLS, ROWS);
+    const bgMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
+    const bg = new THREE.Mesh(bgGeo, bgMat);
+    bg.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, -0.6);
+    scene.add(bg);
+    cubes.push(bg);
 
-    // プレイヤーの描画
-    player.matrix.forEach((row, y) => {
-        row.forEach((val, x) => {
-            if (val > 0) addCube(player.pos.x + x, -(player.pos.y + y), 0, getPieceColor(val));
-        });
-    });
+    // アリーナ
+    arena.forEach((row, y) => row.forEach((val, x) => {
+        if (val > 0) addCube(x, -y, 0, getPieceColor(val));
+    }));
+
+    // ゴースト
+    const gp = getGhostPos();
+    player.matrix.forEach((row, y) => row.forEach((val, x) => {
+        if (val > 0) addCube(gp.x + x, -(gp.y + y), 0, getPieceColor(val), true);
+    }));
+
+    // プレイヤー
+    player.matrix.forEach((row, y) => row.forEach((val, x) => {
+        if (val > 0) addCube(player.pos.x + x, -(player.pos.y + y), 0, getPieceColor(val));
+    }));
 }
 
-function addCube(x, y, z, color) {
-    const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
-    const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.5 });
+function addCube(x, y, z, color, isGhost = false) {
+    const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const material = new THREE.MeshStandardMaterial({ 
+        color: color, 
+        transparent: isGhost, 
+        opacity: isGhost ? 0.2 : 1.0,
+        wireframe: isGhost
+    });
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(x, y, z);
     scene.add(cube);
@@ -113,23 +144,21 @@ function addCube(x, y, z, color) {
 }
 
 function getPieceColor(val) {
-    const key = Object.keys(PIECES).find(k => PIECES[k].m.flat().includes(val));
-    return PIECES[key].c;
+    const types = Object.keys(PIECES);
+    for(let t of types) { if(PIECES[t].m.flat().includes(val)) return PIECES[t].c; }
+    return 0xffffff;
 }
 
-// --- コアロジック (2D版を3D用にラップ) ---
+// --- ロジック ---
 function fillBag() {
     let p = Object.keys(PIECES);
-    for (let i = p.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [p[i], p[j]] = [p[j], p[i]];
-    }
+    for (let i = p.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
     bag.push(...p);
 }
 
 function getNext() {
-    while (nextQueue.length < 5) { if (bag.length === 0) fillBag(); nextQueue.push(bag.shift()); }
-    updateUIPreviews();
+    while (nextQueue.length < 6) { if (bag.length === 0) fillBag(); nextQueue.push(bag.shift()); }
+    updateUI();
     return nextQueue.shift();
 }
 
@@ -137,7 +166,7 @@ function playerReset() {
     player.type = getNext();
     player.matrix = JSON.parse(JSON.stringify(PIECES[player.type].m));
     player.pos.y = 0; player.pos.x = 3; player.canHold = true;
-    if (collide()) { arena.forEach(r => r.fill(0)); score = 0; level = 28; linesCleared = 270; }
+    if (collide()) { arena.forEach(r => r.fill(0)); score = 0; level = 1; linesCleared = 0; }
 }
 
 function collide() {
@@ -150,10 +179,26 @@ function collide() {
     return false;
 }
 
-function merge() {
-    player.matrix.forEach((row, y) => {
-        row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; });
-    });
+function rotate(matrix, dir) {
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+    }
+    if (dir > 0) matrix.forEach(row => row.reverse()); else matrix.reverse();
+}
+
+function getGhostPos() {
+    const pos = {x: player.pos.x, y: player.pos.y};
+    while (!collideWithPos(pos.x, pos.y + 1)) { pos.y++; }
+    return pos;
+}
+
+function collideWithPos(px, py) {
+    for (let y = 0; y < player.matrix.length; ++y) {
+        for (let x = 0; x < player.matrix[y].length; ++x) {
+            if (player.matrix[y][x] !== 0 && (arena[y + py] && arena[y + py][x + px]) !== 0) return true;
+        }
+    }
+    return false;
 }
 
 function arenaSweep() {
@@ -162,86 +207,94 @@ function arenaSweep() {
         if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(COLS).fill(0)); cleared++; y++; }
     }
     if (cleared > 0) {
-        score += [0, 400, 1000, 3000, 12000][cleared] * (level - 20);
-        linesCleared += cleared; level = Math.min(100, Math.floor(linesCleared / 10) + 1);
-        document.getElementById('score').innerText = score;
-        document.getElementById('level').innerText = level;
+        score += [0, 100, 300, 500, 800][cleared] * level;
+        linesCleared += cleared; level = Math.floor(linesCleared / 10) + 1;
+        updateUI();
     }
 }
 
-function rotate(matrix) {
-    for (let y = 0; y < matrix.length; ++y) {
-        for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-    }
-    matrix.forEach(row => row.reverse());
+function updateUI() {
+    document.getElementById('score').innerText = score;
+    document.getElementById('level').innerText = level;
+    document.getElementById('hold-box').innerText = player.hold || 'NONE';
+    const container = document.getElementById('next-container');
+    container.innerHTML = '';
+    nextQueue.slice(0, 5).forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'next-preview';
+        div.innerText = p;
+        div.style.color = '#' + PIECES[p].c.toString(16).padStart(6, '0');
+        container.appendChild(div);
+    });
 }
 
-// --- 入力系 ---
+// --- 操作設定 ---
+window.openSettings = function() {
+    document.getElementById('settings-modal').style.display = 'block';
+    const list = document.getElementById('config-list'); list.innerHTML = '';
+    Object.keys(binds).forEach(action => {
+        const row = document.createElement('div'); row.className = 'key-row';
+        row.innerHTML = `<span>${action}</span><div class="key-input">${binds[action] === ' ' ? 'Space' : binds[action]}</div>`;
+        row.querySelector('.key-input').onclick = (ev) => {
+            ev.target.innerText = 'PUSH KEY...';
+            const h = (e) => { e.preventDefault(); binds[action] = e.key; ev.target.innerText = e.key === ' ' ? 'Space' : e.key; window.removeEventListener('keydown', h); };
+            window.addEventListener('keydown', h);
+        };
+        list.appendChild(row);
+    });
+};
+window.closeSettings = function() {
+    localStorage.setItem('tetris_binds', JSON.stringify(binds));
+    document.getElementById('settings-modal').style.display = 'none';
+};
+
 window.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft') { player.pos.x--; if(collide()) player.pos.x++; }
-    if (e.key === 'ArrowRight') { player.pos.x++; if(collide()) player.pos.x--; }
-    if (e.key === 'ArrowDown') { player.pos.y++; if(collide()) player.pos.y--; }
-    if (e.key === 'ArrowUp') { 
-        const old = JSON.parse(JSON.stringify(player.matrix));
-        rotate(player.matrix); if(collide()) player.matrix = old;
+    if (document.getElementById('settings-modal').style.display === 'block') return;
+    const k = e.key;
+    if (k === binds.left) { player.pos.x--; if(collide()) player.pos.x++; }
+    if (k === binds.right) { player.pos.x++; if(collide()) player.pos.x--; }
+    if (k === binds.softDrop) { player.pos.y++; if(collide()) player.pos.y--; }
+    if (k === binds.rotateRight) { rotate(player.matrix, 1); if(collide()) rotate(player.matrix, -1); }
+    if (k === binds.rotateLeft) { rotate(player.matrix, -1); if(collide()) rotate(player.matrix, 1); }
+    if (k === binds.hardDrop) { e.preventDefault(); while(!collide()){ player.pos.y++; } player.pos.y--; 
+        player.matrix.forEach((row, y) => row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; }));
+        playerReset(); arenaSweep(); 
     }
-    if (e.key === ' ') { while(!collide()){ player.pos.y++; } player.pos.y--; merge(); playerReset(); arenaSweep(); }
+    if (k === binds.hold) {
+        if (!player.canHold) return;
+        const current = player.type;
+        if (!player.hold) { player.hold = current; playerReset(); } 
+        else {
+            const held = player.hold; player.hold = current;
+            player.type = held; player.matrix = JSON.parse(JSON.stringify(PIECES[held].m));
+            player.pos.y = 0; player.pos.x = 3;
+        }
+        player.canHold = false;
+    }
 });
 
-function updateUIPreviews() {
-    // 簡易的な文字表示によるプレビュー（Three.js内での複数レンダリングは重いため）
-    document.getElementById('next1').innerText = nextQueue[0];
-    document.getElementById('next2').innerText = nextQueue[1];
-    document.getElementById('next1').style.color = '#' + PIECES[nextQueue[0]].c.toString(16);
-    document.getElementById('next2').style.color = '#' + PIECES[nextQueue[1]].c.toString(16);
-    document.getElementById('next1').style.display = 'flex';
-    document.getElementById('next1').style.alignItems = 'center';
-    document.getElementById('next1').style.justifyContent = 'center';
-    document.getElementById('next1').style.fontSize = '40px';
-    document.getElementById('next2').style.display = 'flex';
-    document.getElementById('next2').style.alignItems = 'center';
-    document.getElementById('next2').style.justifyContent = 'center';
-    document.getElementById('next2').style.fontSize = '24px';
-}
-
-// --- ループ ---
+// --- メインループ ---
 let dropCounter = 0, lastTime = 0;
 function animate(time = 0) {
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
-
-    const gravity = Math.max(30, 160 - (level - 28) * 2);
+    const gravity = Math.max(100, 1000 - (level - 1) * 100);
     if (dropCounter > gravity) {
         player.pos.y++;
         if (collide()) {
             player.pos.y--;
-            lockDelay += dt;
-            if (lockDelay > 500) {
-                merge(); playerReset(); arenaSweep(); lockDelay = 0;
-            }
-        } else {
-            lockDelay = 0;
+            player.matrix.forEach((row, y) => row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; }));
+            playerReset(); arenaSweep();
         }
         dropCounter = 0;
     }
-
     updateScene();
-    
-    // カメラの微細な動き
-    camera.position.x = COLS/2 + Math.sin(time/1000) * 0.5;
-    
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
 
 playerReset();
 animate();
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
 </script>
 </body>
 </html>
