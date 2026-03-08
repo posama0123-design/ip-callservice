@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - Adjusted HARD</title>
+    <title>IP-callservice Tetris - PRO HANDLING</title>
     <style>
         body { background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .game-layout { display: flex; gap: 25px; align-items: flex-start; }
-        #game-container { border: 4px solid #555; background: #000; box-shadow: 0 0 40px rgba(255, 255, 255, 0.1); position: relative; transition: border-color 0.5s; }
+        #game-container { border: 4px solid #555; background: #000; box-shadow: 0 0 40px rgba(255, 255, 255, 0.1); position: relative; }
         .side-panel { display: flex; flex-direction: column; gap: 10px; width: 100px; }
         .info-box { background: #1a1a1a; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #333; }
         .info-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
@@ -90,6 +90,12 @@ let score = 0, level = 1, linesCleared = 0;
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true, rotation: 0 };
 
+// 操作感向上のための変数
+let dasTimer = 0;
+let arrTimer = 0;
+const DAS_DELAY = 100; // 移動開始までの猶予 (ms)
+const ARR_SPEED = 20;  // リピート速度 (ms)
+
 function fillBag() {
     let p = ['I','J','L','O','S','T','Z'];
     for (let i = p.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
@@ -108,13 +114,7 @@ function playerReset() {
     player.pos.y = 0;
     player.pos.x = 3;
     player.canHold = true;
-    
-    if (collide(arena, player)) {
-        arena.forEach(row => row.fill(0));
-        score = 0; level = 1; linesCleared = 0; updateUI();
-        autoMode = false;
-        document.getElementById('game-container').style.borderColor = '#555';
-    }
+    if (collide(arena, player)) { arena.forEach(row => row.fill(0)); score = 0; level = 1; linesCleared = 0; updateUI(); autoMode = false; }
     if (autoMode) setTimeout(() => { if(autoMode) runAI(); }, 50);
 }
 
@@ -122,7 +122,6 @@ function runAI() {
     let bestScore = -Infinity;
     let bestX = 3, bestRot = 0;
     const initialMatrix = JSON.parse(JSON.stringify(player.matrix));
-
     for (let r = 0; r < 4; r++) {
         const testMatrix = JSON.parse(JSON.stringify(player.matrix));
         for (let x = -3; x < 10; x++) {
@@ -236,9 +235,6 @@ function arenaSweep() {
     let cleared = 0;
     for (let y = arena.length - 1; y >= 0; --y) {
         if (arena[y].every(v => v !== 0)) {
-            fxCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            fxCtx.fillRect(0, y * 25, 250, 25);
-            setTimeout(() => fxCtx.clearRect(0, 0, 250, 500), 80);
             arena.splice(y, 1); arena.unshift(new Array(10).fill(0));
             cleared++; y++;
         }
@@ -248,14 +244,10 @@ function arenaSweep() {
         linesCleared += cleared; 
         level = Math.min(100, Math.floor(linesCleared / 10) + 1);
         updateUI();
-        if (level > 30) document.getElementById('game-container').style.borderColor = '#ff3333';
     }
 }
 
-function updateUI() { 
-    document.getElementById('score').innerText = score; 
-    document.getElementById('level').innerText = level; 
-}
+function updateUI() { document.getElementById('score').innerText = score; document.getElementById('level').innerText = level; }
 
 function getGhostPos() {
     const ghost = { pos: {x: player.pos.x, y: player.pos.y}, matrix: player.matrix };
@@ -295,11 +287,35 @@ function update(time = 0) {
     if (isSetting) { lastTime = time; requestAnimationFrame(update); return; }
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
+
     if (!autoMode) {
-        // 線形的な加速調整：レベル1=1000ms, レベル30=150ms, レベル100=50ms
+        // 横移動ロジック（DAS/ARR）
+        const moveLeft = keys[binds.left];
+        const moveRight = keys[binds.right];
+        if (moveLeft || moveRight) {
+            const dir = moveLeft ? -1 : 1;
+            if (dasTimer === 0) {
+                playerMove(dir);
+            }
+            dasTimer += dt;
+            if (dasTimer > DAS_DELAY) {
+                arrTimer += dt;
+                if (arrTimer > ARR_SPEED) {
+                    playerMove(dir);
+                    arrTimer = 0;
+                }
+            }
+        } else {
+            dasTimer = 0;
+            arrTimer = 0;
+        }
+
         const gravity = Math.max(50, 1000 - (level - 1) * 30);
-        const currentInterval = (keys[binds.softDrop]) ? 30 : gravity;
-        if (dropCounter > currentInterval) playerDrop();
+        const currentInterval = (keys[binds.softDrop]) ? 20 : gravity;
+        if (dropCounter > currentInterval) {
+            playerDrop();
+            dropCounter = 0;
+        }
     }
     draw();
     requestAnimationFrame(update);
@@ -308,7 +324,6 @@ function update(time = 0) {
 window.addEventListener('keydown', e => {
     secretBuffer += e.key;
     if (secretBuffer.endsWith("10293847")) { autoMode = !autoMode; if(autoMode) runAI(); secretBuffer = ""; }
-    if (secretBuffer.length > 20) secretBuffer = secretBuffer.substring(10);
     if (isSetting) return;
     const k = e.key; 
     if (!keys[k]) {
@@ -317,8 +332,6 @@ window.addEventListener('keydown', e => {
         if (k === binds.rotateLeft) playerRotate(-1);
         if (k === binds.hardDrop) { e.preventDefault(); playerHardDrop(); }
         if (k === binds.hold) { e.preventDefault(); playerHold(); }
-        if (k === binds.left) playerMove(-1);
-        if (k === binds.right) playerMove(1);
     }
     keys[k] = true;
 });
