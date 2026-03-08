@@ -2,54 +2,56 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice - TETRIS 3D NORMAL</title>
+    <title>IP-callservice - 3D BOX TETRIS</title>
     <style>
-        body { margin: 0; background: #111; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        body { margin: 0; background: #080808; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; display: flex; justify-content: space-between; padding: 20px; box-sizing: border-box;
-            text-shadow: 2px 2px 4px #000;
+            pointer-events: none; display: flex; justify-content: space-between; padding: 25px; box-sizing: border-box;
         }
-        .panel { pointer-events: auto; background: rgba(0, 0, 0, 0.7); padding: 15px; border: 2px solid #444; border-radius: 8px; width: 140px; }
-        .label { font-size: 12px; color: #aaa; text-transform: uppercase; margin-bottom: 5px; }
-        .value { font-size: 28px; font-weight: bold; color: #0cf; }
-        #next-container { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .next-preview { font-size: 18px; font-weight: bold; padding: 5px; text-align: center; border-bottom: 1px solid #222; }
+        .panel { pointer-events: auto; background: rgba(0, 0, 0, 0.8); padding: 15px; border: 1px solid #0cf; border-radius: 10px; width: 150px; box-shadow: 0 0 20px rgba(0, 204, 255, 0.2); }
+        .label { font-size: 11px; color: #0cf; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+        .value { font-size: 32px; font-weight: bold; color: #fff; }
+        #next-container { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .next-preview { font-size: 16px; padding: 5px; background: rgba(255,255,255,0.05); border-radius: 4px; text-align: center; }
         
-        /* 設定モーダル */
-        .settings-btn { pointer-events: auto; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 10px 20px; background: #333; border: 1px solid #666; color: #fff; cursor: pointer; border-radius: 5px; }
+        .settings-btn { pointer-events: auto; position: absolute; bottom: 30px; left: 30px; padding: 12px 24px; background: #111; border: 1px solid #444; color: #aaa; cursor: pointer; border-radius: 5px; transition: 0.3s; }
+        .settings-btn:hover { background: #222; color: #fff; border-color: #0cf; }
+        
         #settings-modal { 
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #222; padding: 25px; border: 2px solid #0cf; border-radius: 10px; z-index: 100;
-            width: 320px; box-shadow: 0 0 50px rgba(0,0,0,1); pointer-events: auto;
+            background: #111; padding: 30px; border: 2px solid #0cf; border-radius: 15px; z-index: 100;
+            width: 350px; box-shadow: 0 0 100px #000; pointer-events: auto;
         }
-        .key-row { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; border-bottom: 1px solid #333; padding-bottom: 5px; }
-        .key-input { color: #0cf; font-weight: bold; min-width: 80px; text-align: right; cursor: pointer; }
-        .close-btn { width: 100%; margin-top: 20px; padding: 12px; background: #0cf; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        .key-row { display: flex; justify-content: space-between; margin-bottom: 12px; align-items: center; border-bottom: 1px solid #222; padding-bottom: 8px; }
+        .key-input { color: #0cf; font-weight: bold; cursor: pointer; background: #222; padding: 4px 10px; border-radius: 4px; }
+        .close-btn { width: 100%; margin-top: 25px; padding: 15px; background: #0cf; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 8px; }
     </style>
 </head>
 <body>
 
 <div id="ui-layer">
     <div class="panel">
-        <div class="label">LEVEL</div><div id="level" class="value">1</div>
-        <div style="margin-top:20px" class="label">HOLD</div>
-        <div id="hold-box" class="next-preview">NONE</div>
+        <div class="label">STATUS</div>
+        <div class="label" style="font-size:9px; color:#555">LEVEL</div><div id="level" class="value">1</div>
+        <div style="margin-top:25px" class="label">HOLD SLOT</div>
+        <div id="hold-box" class="next-preview">EMPTY</div>
     </div>
     
     <div class="panel">
-        <div class="label">SCORE</div><div id="score" class="value">0</div>
-        <div style="margin-top:20px" class="label">NEXT</div>
+        <div class="label">DATA</div>
+        <div class="label" style="font-size:9px; color:#555">SCORE</div><div id="score" class="value">0</div>
+        <div style="margin-top:25px" class="label">UPCOMING</div>
         <div id="next-container"></div>
     </div>
 </div>
 
-<button class="settings-btn" onclick="openSettings()">CONTROLS</button>
+<button class="settings-btn" onclick="openSettings()">INPUT SETTINGS</button>
 
 <div id="settings-modal">
-    <h2 style="margin-top:0; font-size:18px; color:#0cf">KEY CONFIG</h2>
+    <h2 style="margin-top:0; color:#0cf; letter-spacing:1px">KEY BINDINGS</h2>
     <div id="config-list"></div>
-    <button class="close-btn" onclick="closeSettings()">SAVE & EXIT</button>
+    <button class="close-btn" onclick="closeSettings()">APPLY CHANGES</button>
 </div>
 
 <script type="importmap">
@@ -70,49 +72,61 @@ let binds = JSON.parse(localStorage.getItem('tetris_binds')) || {
 };
 
 const PIECES = {
-    'I': { m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], c: 0x00ffff },
-    'J': { m: [[2,0,0],[2,2,2],[0,0,0]], c: 0x0000ff },
-    'L': { m: [[0,0,3],[3,3,3],[0,0,0]], c: 0xffaa00 },
-    'O': { m: [[4,4],[4,4]], c: 0xffff00 },
-    'S': { m: [[0,5,5],[5,5,0],[0,0,0]], c: 0x00ff00 },
-    'T': { m: [[0,6,0],[6,6,6],[0,0,0]], c: 0xaa00ff },
-    'Z': { m: [[7,7,0],[0,7,7],[0,0,0]], c: 0xff0000 }
+    'I': { m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], c: 0x00f2ff },
+    'J': { m: [[2,0,0],[2,2,2],[0,0,0]], c: 0x0044ff },
+    'L': { m: [[0,0,3],[3,3,3],[0,0,0]], c: 0xff9900 },
+    'O': { m: [[4,4],[4,4]], c: 0xffe600 },
+    'S': { m: [[0,5,5],[5,5,0],[0,0,0]], c: 0x22ff00 },
+    'T': { m: [[0,6,0],[6,6,6],[0,0,0]], c: 0xcc00ff },
+    'Z': { m: [[7,7,0],[0,7,7],[0,0,0]], c: 0xff0044 }
 };
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true };
 
-// --- Three.js レンダリング ---
+// --- Three.js ---
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 明るいライト設定
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // 環境光を強く
-scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(5, 10, 7);
-scene.add(directionalLight);
+// ライト
+scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(5, 10, 15);
+scene.add(sun);
 
-// カメラ位置（2D感覚で遊べるように固定）
-camera.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, 22);
-camera.lookAt(COLS/2 - 0.5, -ROWS/2 + 0.5, 0);
+// カメラ固定 (少しだけ斜めにしてボックス感を確認しやすく)
+camera.position.set(COLS/2 - 0.5, -ROWS/2, 25);
+camera.lookAt(COLS/2 - 0.5, -ROWS/2, 0);
+
+// ボックス（檻）の作成
+function createPlayBox() {
+    const boxGeo = new THREE.BoxGeometry(COLS, ROWS, 1.2);
+    const boxMat = new THREE.MeshBasicMaterial({ 
+        color: 0x00ccff, 
+        wireframe: true, 
+        transparent: true, 
+        opacity: 0.3 
+    });
+    const box = new THREE.Mesh(boxGeo, boxMat);
+    box.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, 0);
+    scene.add(box);
+
+    // 底面のグリッド
+    const helper = new THREE.GridHelper(COLS, COLS, 0x444444, 0x222222);
+    helper.position.set(COLS/2 - 0.5, -ROWS + 0.5, 0);
+    helper.rotation.x = Math.PI / 2;
+    scene.add(helper);
+}
+createPlayBox();
 
 let cubes = [];
 function updateScene() {
     cubes.forEach(c => scene.remove(c));
     cubes = [];
 
-    // 背景枠
-    const bgGeo = new THREE.PlaneGeometry(COLS, ROWS);
-    const bgMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
-    const bg = new THREE.Mesh(bgGeo, bgMat);
-    bg.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, -0.6);
-    scene.add(bg);
-    cubes.push(bg);
-
-    // アリーナ
+    // 固定済みミノ
     arena.forEach((row, y) => row.forEach((val, x) => {
         if (val > 0) addCube(x, -y, 0, getPieceColor(val));
     }));
@@ -123,19 +137,20 @@ function updateScene() {
         if (val > 0) addCube(gp.x + x, -(gp.y + y), 0, getPieceColor(val), true);
     }));
 
-    // プレイヤー
+    // 操作中ミノ
     player.matrix.forEach((row, y) => row.forEach((val, x) => {
         if (val > 0) addCube(player.pos.x + x, -(player.pos.y + y), 0, getPieceColor(val));
     }));
 }
 
 function addCube(x, y, z, color, isGhost = false) {
-    const geometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+    const geometry = new THREE.BoxGeometry(0.92, 0.92, 0.92);
     const material = new THREE.MeshStandardMaterial({ 
         color: color, 
         transparent: isGhost, 
-        opacity: isGhost ? 0.2 : 1.0,
-        wireframe: isGhost
+        opacity: isGhost ? 0.15 : 1.0,
+        metalness: 0.4,
+        roughness: 0.2
     });
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(x, y, z);
@@ -144,12 +159,11 @@ function addCube(x, y, z, color, isGhost = false) {
 }
 
 function getPieceColor(val) {
-    const types = Object.keys(PIECES);
-    for(let t of types) { if(PIECES[t].m.flat().includes(val)) return PIECES[t].c; }
+    for(let t in PIECES) { if(PIECES[t].m.flat().includes(val)) return PIECES[t].c; }
     return 0xffffff;
 }
 
-// --- ロジック ---
+// --- ロジック (2D互換) ---
 function fillBag() {
     let p = Object.keys(PIECES);
     for (let i = p.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
@@ -179,16 +193,12 @@ function collide() {
     return false;
 }
 
-function rotate(matrix, dir) {
-    for (let y = 0; y < matrix.length; ++y) {
-        for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-    }
-    if (dir > 0) matrix.forEach(row => row.reverse()); else matrix.reverse();
-}
-
 function getGhostPos() {
     const pos = {x: player.pos.x, y: player.pos.y};
-    while (!collideWithPos(pos.x, pos.y + 1)) { pos.y++; }
+    while (true) {
+        pos.y++;
+        if (collideWithPos(pos.x, pos.y)) { pos.y--; break; }
+    }
     return pos;
 }
 
@@ -201,22 +211,10 @@ function collideWithPos(px, py) {
     return false;
 }
 
-function arenaSweep() {
-    let cleared = 0;
-    for (let y = ROWS - 1; y >= 0; --y) {
-        if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(COLS).fill(0)); cleared++; y++; }
-    }
-    if (cleared > 0) {
-        score += [0, 100, 300, 500, 800][cleared] * level;
-        linesCleared += cleared; level = Math.floor(linesCleared / 10) + 1;
-        updateUI();
-    }
-}
-
 function updateUI() {
     document.getElementById('score').innerText = score;
     document.getElementById('level').innerText = level;
-    document.getElementById('hold-box').innerText = player.hold || 'NONE';
+    document.getElementById('hold-box').innerText = player.hold || 'EMPTY';
     const container = document.getElementById('next-container');
     container.innerHTML = '';
     nextQueue.slice(0, 5).forEach(p => {
@@ -228,15 +226,16 @@ function updateUI() {
     });
 }
 
-// --- 操作設定 ---
+// --- 操作 ---
 window.openSettings = function() {
     document.getElementById('settings-modal').style.display = 'block';
     const list = document.getElementById('config-list'); list.innerHTML = '';
     Object.keys(binds).forEach(action => {
-        const row = document.createElement('div'); row.className = 'key-row';
+        const row = document.createElement('div');
+        row.className = 'key-row';
         row.innerHTML = `<span>${action}</span><div class="key-input">${binds[action] === ' ' ? 'Space' : binds[action]}</div>`;
         row.querySelector('.key-input').onclick = (ev) => {
-            ev.target.innerText = 'PUSH KEY...';
+            ev.target.innerText = '??';
             const h = (e) => { e.preventDefault(); binds[action] = e.key; ev.target.innerText = e.key === ' ' ? 'Space' : e.key; window.removeEventListener('keydown', h); };
             window.addEventListener('keydown', h);
         };
@@ -254,11 +253,25 @@ window.addEventListener('keydown', e => {
     if (k === binds.left) { player.pos.x--; if(collide()) player.pos.x++; }
     if (k === binds.right) { player.pos.x++; if(collide()) player.pos.x--; }
     if (k === binds.softDrop) { player.pos.y++; if(collide()) player.pos.y--; }
-    if (k === binds.rotateRight) { rotate(player.matrix, 1); if(collide()) rotate(player.matrix, -1); }
-    if (k === binds.rotateLeft) { rotate(player.matrix, -1); if(collide()) rotate(player.matrix, 1); }
-    if (k === binds.hardDrop) { e.preventDefault(); while(!collide()){ player.pos.y++; } player.pos.y--; 
+    if (k === binds.rotateRight) { 
+        const m = player.matrix;
+        for (let y = 0; y < m.length; ++y) { for (let x = 0; x < y; ++x) [m[x][y], m[y][x]] = [m[y][x], m[x][y]]; }
+        m.forEach(row => row.reverse());
+        if(collide()) { // 逆回転で戻す
+            m.forEach(row => row.reverse());
+            for (let y = 0; y < m.length; ++y) { for (let x = 0; x < y; ++x) [m[x][y], m[y][x]] = [m[y][x], m[x][y]]; }
+        }
+    }
+    if (k === binds.hardDrop) { 
+        e.preventDefault(); while(!collide()){ player.pos.y++; } player.pos.y--; 
         player.matrix.forEach((row, y) => row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; }));
-        playerReset(); arenaSweep(); 
+        playerReset(); 
+        // 行削除
+        let cleared = 0;
+        for (let y = ROWS - 1; y >= 0; --y) {
+            if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(COLS).fill(0)); cleared++; y++; }
+        }
+        if (cleared > 0) { score += cleared * 100 * level; linesCleared += cleared; level = Math.floor(linesCleared/10)+1; updateUI(); }
     }
     if (k === binds.hold) {
         if (!player.canHold) return;
@@ -278,13 +291,17 @@ let dropCounter = 0, lastTime = 0;
 function animate(time = 0) {
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
-    const gravity = Math.max(100, 1000 - (level - 1) * 100);
+    const gravity = Math.max(100, 1000 - (level - 1) * 150);
     if (dropCounter > gravity) {
         player.pos.y++;
         if (collide()) {
             player.pos.y--;
             player.matrix.forEach((row, y) => row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; }));
-            playerReset(); arenaSweep();
+            playerReset();
+            // 行削除（共通化すべきですが一旦ここに）
+            for (let y = ROWS - 1; y >= 0; --y) {
+                if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(COLS).fill(0)); y++; }
+            }
         }
         dropCounter = 0;
     }
