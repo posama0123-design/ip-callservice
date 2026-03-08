@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - HARD MODE v2.0</title>
+    <title>IP-callservice Tetris - HARD: LIMITED VISION</title>
     <style>
         body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .game-layout { display: flex; gap: 25px; align-items: flex-start; }
@@ -36,7 +36,7 @@
     </div>
     <div class="side-panel">
         <div class="info-box"><div class="info-label">SCORE</div><div id="score" class="info-value">0</div></div>
-        <div class="info-box"><div class="info-label">NEXT</div><canvas id="next-canvas" class="side-canvas" width="80" height="300"></canvas></div>
+        <div class="info-box"><div class="info-label">NEXT (2)</div><canvas id="next-canvas" class="side-canvas" width="80" height="180"></canvas></div>
     </div>
 </div>
 
@@ -62,7 +62,7 @@ let binds = JSON.parse(localStorage.getItem('tetris_binds')) || {
     left: 'ArrowLeft', right: 'ArrowRight', softDrop: 'ArrowDown',
     hardDrop: ' ', rotateRight: 'ArrowUp', rotateLeft: 'q', hold: 'c'
 };
-let isSetting = false, autoMode = false, secretBuffer = "";
+let isSetting = false, autoMode = false;
 
 const PIECES = {
     'I': [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
@@ -87,9 +87,8 @@ let score = 0, level = 28, linesCleared = 270;
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true, rotation: 0 };
 
-// 接地猶予ロジック
 let lockDelayCounter = 0;
-const LOCK_DELAY_MAX = 500; // 500msの接地猶予
+const LOCK_DELAY_MAX = 500;
 let dasTimer = 0, arrTimer = 0;
 const DAS_DELAY = 90, ARR_SPEED = 15;
 
@@ -100,7 +99,7 @@ function fillBag() {
 }
 
 function getNext() {
-    while (nextQueue.length < 6) { if (bag.length === 0) fillBag(); nextQueue.push(bag.shift()); }
+    while (nextQueue.length < 5) { if (bag.length === 0) fillBag(); nextQueue.push(bag.shift()); }
     return nextQueue.shift();
 }
 
@@ -122,13 +121,10 @@ function rotate(matrix, dir) {
 function playerRotate(dir) {
     const oldRot = player.rotation; rotate(player.matrix, dir);
     player.rotation = (player.rotation + dir + 4) % 4;
-    const kickPattern = `${oldRot}->${player.rotation}`;
-    const kicks = KICKS[kickPattern] || [[0,0]];
+    const kicks = KICKS[`${oldRot}->${player.rotation}`] || [[0,0]];
     for (const [kx, ky] of kicks) {
         if (!collide(arena, {pos: {x: player.pos.x + kx, y: player.pos.y - ky}, matrix: player.matrix})) {
-            player.pos.x += kx; player.pos.y -= ky; 
-            if (isGrounded()) lockDelayCounter = 0; // 回転成功で接地猶予リセット
-            return;
+            player.pos.x += kx; player.pos.y -= ky; if (isGrounded()) lockDelayCounter = 0; return;
         }
     }
     rotate(player.matrix, -dir); player.rotation = oldRot;
@@ -137,25 +133,11 @@ function playerRotate(dir) {
 function playerMove(dir) {
     player.pos.x += dir;
     if (collide(arena, player)) { player.pos.x -= dir; return false; }
-    if (isGrounded()) lockDelayCounter = 0; // 移動成功で接地猶予リセット
-    return true;
+    if (isGrounded()) lockDelayCounter = 0; return true;
 }
 
 function isGrounded() {
-    player.pos.y++;
-    const grounded = collide(arena, player);
-    player.pos.y--;
-    return grounded;
-}
-
-function playerDrop() {
-    player.pos.y++;
-    if (collide(arena, player)) {
-        player.pos.y--;
-        // 接地猶予のチェックはupdate内で行う
-    } else {
-        lockDelayCounter = 0;
-    }
+    player.pos.y++; const grounded = collide(arena, player); player.pos.y--; return grounded;
 }
 
 function playerHardDrop() {
@@ -194,16 +176,11 @@ function merge(arena, player) {
 function arenaSweep() {
     let cleared = 0;
     for (let y = arena.length - 1; y >= 0; --y) {
-        if (arena[y].every(v => v !== 0)) {
-            arena.splice(y, 1); arena.unshift(new Array(10).fill(0));
-            cleared++; y++;
-        }
+        if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(10).fill(0)); cleared++; y++; }
     }
     if (cleared > 0) {
         score += [0, 400, 1000, 3000, 12000][cleared] * (level - 20);
-        linesCleared += cleared; 
-        level = Math.min(100, Math.floor(linesCleared / 10) + 1);
-        updateUI();
+        linesCleared += cleared; level = Math.min(100, Math.floor(linesCleared / 10) + 1); updateUI();
     }
 }
 
@@ -235,8 +212,8 @@ function draw() {
     player.matrix.forEach((row, y) => row.forEach((val, x) => drawBlock(context, x + gp.x, y + gp.y, val, true)));
     player.matrix.forEach((row, y) => row.forEach((val, x) => drawBlock(context, x + player.pos.x, y + player.pos.y, val)));
     
-    nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 4, 15);
-    nextQueue.slice(0, 5).forEach((p, i) => {
+    nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 4, 9);
+    nextQueue.slice(0, 2).forEach((p, i) => { // 2個に制限
         PIECES[p].forEach((row, y) => row.forEach((val, x) => drawBlock(nextCtx, x, y + i * 3, val)));
     });
     holdCtx.fillStyle = '#000'; holdCtx.fillRect(0, 0, 4, 4);
@@ -248,8 +225,6 @@ function update(time = 0) {
     if (isSetting) { lastTime = time; requestAnimationFrame(update); return; }
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
-
-    // 横移動
     const moveLeft = keys[binds.left], moveRight = keys[binds.right];
     if (moveLeft || moveRight) {
         const dir = moveLeft ? -1 : 1;
@@ -258,22 +233,15 @@ function update(time = 0) {
         if (dasTimer > DAS_DELAY) { arrTimer += dt; if (arrTimer > ARR_SPEED) { playerMove(dir); arrTimer = 0; } }
     } else { dasTimer = 0; arrTimer = 0; }
 
-    // 落下と接地猶予
     const gravity = Math.max(30, 160 - (level - 28) * 1.8);
     const currentInterval = (keys[binds.softDrop]) ? 15 : gravity;
 
     if (isGrounded()) {
         lockDelayCounter += dt;
-        if (lockDelayCounter >= LOCK_DELAY_MAX) {
-            merge(arena, player); playerReset(); arenaSweep();
-        }
+        if (lockDelayCounter >= LOCK_DELAY_MAX) { merge(arena, player); playerReset(); arenaSweep(); }
     } else {
-        if (dropCounter > currentInterval) {
-            playerDrop();
-            dropCounter = 0;
-        }
+        if (dropCounter > currentInterval) { player.pos.y++; if (collide(arena, player)) player.pos.y--; else lockDelayCounter = 0; dropCounter = 0; }
     }
-
     draw(); requestAnimationFrame(update);
 }
 
