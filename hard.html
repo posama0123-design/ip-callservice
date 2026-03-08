@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - TRUE HARD</title>
+    <title>IP-callservice Tetris - PRO Edition</title>
     <style>
         body { background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .game-layout { display: flex; gap: 25px; align-items: flex-start; }
-        #game-container { border: 4px solid #ff0000; background: #000; box-shadow: 0 0 50px rgba(255, 0, 0, 0.3); position: relative; }
+        #game-container { border: 4px solid #cc0000; background: #000; box-shadow: 0 0 50px rgba(255, 0, 0, 0.3); position: relative; }
         .side-panel { display: flex; flex-direction: column; gap: 10px; width: 100px; }
         .info-box { background: #1a0000; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #440000; }
         .info-label { font-size: 11px; color: #884444; text-transform: uppercase; letter-spacing: 1px; }
@@ -86,7 +86,7 @@ const KICKS = {
 
 let arena = Array.from({length: 20}, () => new Array(10).fill(0));
 let bag = [], nextQueue = [], keys = {};
-let score = 0, level = 29, linesCleared = 280; // Lv.29から開始するように調整
+let score = 0, level = 29, linesCleared = 280;
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true, rotation: 0 };
 
@@ -250,14 +250,48 @@ function getGhostPos() {
     ghost.pos.y--; return ghost.pos;
 }
 
+// 立体感のあるテクスチャで描画する関数
+function drawBlock(ctx, x, y, colorCode, isGhost = false) {
+    const colors = [
+        null,
+        ['#00ffff', '#80ffff', '#00aaaa'], // I
+        ['#0000ff', '#8080ff', '#0000aa'], // J
+        ['#ffaa00', '#ffd480', '#cc8800'], // L
+        ['#ffff00', '#ffff80', '#aaaa00'], // O
+        ['#00ff00', '#80ff80', '#00aa00'], // S
+        ['#aa00ff', '#d480ff', '#8800cc'], // T
+        ['#ff0000', '#ff8080', '#aa0000'], // Z
+    ];
+    
+    if (colorCode === 0) return;
+
+    if (isGhost) {
+        ctx.strokeStyle = '#440000'; // 暗い赤の枠
+        ctx.lineWidth = 0.08;
+        ctx.strokeRect(x, y, 1, 1);
+    } else {
+        const [main, light, dark] = colors[colorCode];
+        ctx.fillStyle = main;
+        ctx.fillRect(x, y, 1, 1);
+        
+        // ハイライト（立体感）
+        ctx.fillStyle = light;
+        ctx.fillRect(x, y, 1, 0.1);
+        ctx.fillRect(x, y, 0.1, 1);
+        
+        // シャドウ（立体感）
+        ctx.fillStyle = dark;
+        ctx.fillRect(x, y + 0.9, 1, 0.1);
+        ctx.fillRect(x + 0.9, y, 0.1, 1);
+        
+        ctx.lineWidth = 0.05; ctx.strokeStyle = '#fff'; ctx.strokeRect(x, y, 1, 1);
+    }
+}
+
 function drawMatrix(matrix, offset, ctx, isGhost = false) {
-    const colors = [null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000'];
     matrix.forEach((row, y) => {
         row.forEach((val, x) => {
-            if (val !== 0) {
-                if (isGhost) { ctx.strokeStyle = '#330000'; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1); } 
-                else { ctx.fillStyle = colors[val]; ctx.fillRect(x + offset.x, y + offset.y, 1, 1); }
-            }
+            drawBlock(ctx, x + offset.x, y + offset.y, val, isGhost);
         });
     });
 }
@@ -267,6 +301,8 @@ function draw() {
     drawMatrix(arena, {x: 0, y: 0}, context);
     drawMatrix(player.matrix, getGhostPos(), context, true);
     drawMatrix(player.matrix, player.pos, context);
+    
+    // UI canvases (NEXT/HOLD)
     nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 4, 15);
     nextQueue.slice(0, 5).forEach((p, i) => drawMatrix(PIECES[p], {x: 0, y: i * 3}, nextCtx));
     holdCtx.fillStyle = '#000'; holdCtx.fillRect(0, 0, 4, 4);
@@ -286,7 +322,6 @@ function update(time = 0) {
             dasTimer += dt;
             if (dasTimer > DAS_DELAY) { arrTimer += dt; if (arrTimer > ARR_SPEED) { playerMove(dir); arrTimer = 0; } }
         } else { dasTimer = 0; arrTimer = 0; }
-        // Lv.29(150ms) -> Lv.100(30ms) の直線加速
         const gravity = Math.max(30, 150 - (level - 29) * 1.7);
         const currentInterval = (keys[binds.softDrop]) ? 15 : gravity;
         if (dropCounter > currentInterval) { playerDrop(); dropCounter = 0; }
