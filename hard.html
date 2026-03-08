@@ -2,27 +2,27 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - PRO HANDLING</title>
+    <title>IP-callservice Tetris - TRUE HARD</title>
     <style>
         body { background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .game-layout { display: flex; gap: 25px; align-items: flex-start; }
-        #game-container { border: 4px solid #555; background: #000; box-shadow: 0 0 40px rgba(255, 255, 255, 0.1); position: relative; }
+        #game-container { border: 4px solid #ff0000; background: #000; box-shadow: 0 0 50px rgba(255, 0, 0, 0.3); position: relative; }
         .side-panel { display: flex; flex-direction: column; gap: 10px; width: 100px; }
-        .info-box { background: #1a1a1a; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #333; }
-        .info-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
-        .info-value { font-size: 20px; font-weight: bold; color: #eee; }
+        .info-box { background: #1a0000; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #440000; }
+        .info-label { font-size: 11px; color: #884444; text-transform: uppercase; letter-spacing: 1px; }
+        .info-value { font-size: 20px; font-weight: bold; color: #ff3333; }
         canvas { display: block; }
-        canvas.side-canvas { background: #000; border: 1px solid #222; margin-top: 5px; border-radius: 4px; }
+        canvas.side-canvas { background: #000; border: 1px solid #220000; margin-top: 5px; border-radius: 4px; }
         #fx-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
         .settings-btn { margin-top: 20px; padding: 10px 20px; background: #222; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 5px; }
         #settings-modal { 
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #111; padding: 25px; border: 1px solid #eee; border-radius: 10px; z-index: 100;
+            background: #111; padding: 25px; border: 1px solid #ff3333; border-radius: 10px; z-index: 100;
             width: 320px; box-shadow: 0 0 100px rgba(0,0,0,1);
         }
         .key-row { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; border-bottom: 1px solid #222; padding-bottom: 5px; }
-        .key-input { color: #0dc2ff; font-weight: bold; min-width: 80px; text-align: right; cursor: pointer; }
-        .close-btn { width: 100%; margin-top: 20px; padding: 12px; background: #eee; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        .key-input { color: #ff3333; font-weight: bold; min-width: 80px; text-align: right; cursor: pointer; }
+        .close-btn { width: 100%; margin-top: 20px; padding: 12px; background: #ff3333; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -30,7 +30,7 @@
 <div class="game-layout">
     <div class="side-panel">
         <div class="info-box"><div class="info-label">HOLD</div><canvas id="hold-canvas" class="side-canvas" width="80" height="80"></canvas></div>
-        <div class="info-box" style="margin-top:20px"><div class="info-label">LEVEL</div><div id="level" class="info-value">1</div></div>
+        <div class="info-box" style="margin-top:20px"><div class="info-label">LEVEL</div><div id="level" class="info-value">29</div></div>
     </div>
     <div id="game-container">
         <canvas id="tetris" width="250" height="500"></canvas>
@@ -45,7 +45,7 @@
 <button class="settings-btn" onclick="openSettings()">CONTROLS</button>
 
 <div id="settings-modal">
-    <h2 style="margin-top:0; font-size:18px">KEY CONFIG</h2>
+    <h2 style="margin-top:0; font-size:18px; color:#ff3333">KEY CONFIG</h2>
     <div id="config-list"></div>
     <button class="close-btn" onclick="closeSettings()">SAVE & EXIT</button>
 </div>
@@ -86,15 +86,14 @@ const KICKS = {
 
 let arena = Array.from({length: 20}, () => new Array(10).fill(0));
 let bag = [], nextQueue = [], keys = {};
-let score = 0, level = 1, linesCleared = 0;
+let score = 0, level = 29, linesCleared = 280; // Lv.29から開始するように調整
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true, rotation: 0 };
 
-// 操作感向上のための変数
 let dasTimer = 0;
 let arrTimer = 0;
-const DAS_DELAY = 100; // 移動開始までの猶予 (ms)
-const ARR_SPEED = 20;  // リピート速度 (ms)
+const DAS_DELAY = 90; 
+const ARR_SPEED = 15; 
 
 function fillBag() {
     let p = ['I','J','L','O','S','T','Z'];
@@ -110,12 +109,9 @@ function getNext() {
 function playerReset() {
     player.type = getNext();
     player.matrix = JSON.parse(JSON.stringify(PIECES[player.type]));
-    player.rotation = 0;
-    player.pos.y = 0;
-    player.pos.x = 3;
-    player.canHold = true;
-    if (collide(arena, player)) { arena.forEach(row => row.fill(0)); score = 0; level = 1; linesCleared = 0; updateUI(); autoMode = false; }
-    if (autoMode) setTimeout(() => { if(autoMode) runAI(); }, 50);
+    player.rotation = 0; player.pos.y = 0; player.pos.x = 3; player.canHold = true;
+    if (collide(arena, player)) { arena.forEach(row => row.fill(0)); score = 0; level = 29; linesCleared = 280; updateUI(); autoMode = false; }
+    if (autoMode) setTimeout(() => { if(autoMode) runAI(); }, 30);
 }
 
 function runAI() {
@@ -161,7 +157,7 @@ function evaluateBoard(p) {
             if (!isSet) holes++;
         }
     }
-    return (holes * -15.0) + (bumpiness * -2.0) + (height * -1.0);
+    return (holes * -25.0) + (bumpiness * -3.0) + (height * -1.5);
 }
 
 function rotate(matrix, dir) {
@@ -193,8 +189,7 @@ function playerMove(dir) {
 function playerDrop() {
     player.pos.y++;
     if (collide(arena, player)) {
-        player.pos.y--;
-        merge(arena, player); playerReset(); arenaSweep();
+        player.pos.y--; merge(arena, player); playerReset(); arenaSweep();
     }
 }
 
@@ -240,7 +235,7 @@ function arenaSweep() {
         }
     }
     if (cleared > 0) {
-        score += [0, 100, 300, 500, 800][cleared] * level;
+        score += [0, 400, 1000, 3000, 12000][cleared] * (level - 28);
         linesCleared += cleared; 
         level = Math.min(100, Math.floor(linesCleared / 10) + 1);
         updateUI();
@@ -260,12 +255,8 @@ function drawMatrix(matrix, offset, ctx, isGhost = false) {
     matrix.forEach((row, y) => {
         row.forEach((val, x) => {
             if (val !== 0) {
-                if (isGhost) {
-                    ctx.strokeStyle = '#222'; ctx.lineWidth = 0.08; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
-                } else {
-                    ctx.fillStyle = colors[val]; ctx.fillRect(x + offset.x, y + offset.y, 1, 1);
-                    ctx.lineWidth = 0.05; ctx.strokeStyle = '#fff'; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1);
-                }
+                if (isGhost) { ctx.strokeStyle = '#330000'; ctx.strokeRect(x + offset.x, y + offset.y, 1, 1); } 
+                else { ctx.fillStyle = colors[val]; ctx.fillRect(x + offset.x, y + offset.y, 1, 1); }
             }
         });
     });
@@ -287,43 +278,24 @@ function update(time = 0) {
     if (isSetting) { lastTime = time; requestAnimationFrame(update); return; }
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
-
     if (!autoMode) {
-        // 横移動ロジック（DAS/ARR）
-        const moveLeft = keys[binds.left];
-        const moveRight = keys[binds.right];
+        const moveLeft = keys[binds.left], moveRight = keys[binds.right];
         if (moveLeft || moveRight) {
             const dir = moveLeft ? -1 : 1;
-            if (dasTimer === 0) {
-                playerMove(dir);
-            }
+            if (dasTimer === 0) playerMove(dir);
             dasTimer += dt;
-            if (dasTimer > DAS_DELAY) {
-                arrTimer += dt;
-                if (arrTimer > ARR_SPEED) {
-                    playerMove(dir);
-                    arrTimer = 0;
-                }
-            }
-        } else {
-            dasTimer = 0;
-            arrTimer = 0;
-        }
-
-        const gravity = Math.max(50, 1000 - (level - 1) * 30);
-        const currentInterval = (keys[binds.softDrop]) ? 20 : gravity;
-        if (dropCounter > currentInterval) {
-            playerDrop();
-            dropCounter = 0;
-        }
+            if (dasTimer > DAS_DELAY) { arrTimer += dt; if (arrTimer > ARR_SPEED) { playerMove(dir); arrTimer = 0; } }
+        } else { dasTimer = 0; arrTimer = 0; }
+        // Lv.29(150ms) -> Lv.100(30ms) の直線加速
+        const gravity = Math.max(30, 150 - (level - 29) * 1.7);
+        const currentInterval = (keys[binds.softDrop]) ? 15 : gravity;
+        if (dropCounter > currentInterval) { playerDrop(); dropCounter = 0; }
     }
-    draw();
-    requestAnimationFrame(update);
+    draw(); requestAnimationFrame(update);
 }
 
 window.addEventListener('keydown', e => {
-    secretBuffer += e.key;
-    if (secretBuffer.endsWith("10293847")) { autoMode = !autoMode; if(autoMode) runAI(); secretBuffer = ""; }
+    secretBuffer += e.key; if (secretBuffer.endsWith("10293847")) { autoMode = !autoMode; if(autoMode) runAI(); secretBuffer = ""; }
     if (isSetting) return;
     const k = e.key; 
     if (!keys[k]) {
