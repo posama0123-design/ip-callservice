@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>IP-callservice - TETRIS 3D</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; justify-content: space-between; padding: 20px; box-sizing: border-box;
+        }
+        .panel { pointer-events: auto; background: rgba(20, 0, 0, 0.8); padding: 15px; border: 2px solid #ff0000; border-radius: 8px; width: 120px; height: fit-content; }
+        .label { font-size: 10px; color: #844; text-transform: uppercase; }
+        .value { font-size: 24px; font-weight: bold; color: #f33; }
+        #next-container { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .next-preview { width: 80px; height: 80px; background: #000; border: 1px solid #311; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="panel">
+        <div class="label">LEVEL</div><div id="level" class="value">28</div>
+        <div style="margin-top:20px" class="label">HOLD</div>
+        <div id="hold-box" class="next-preview"></div>
+    </div>
+    
+    <div class="panel">
+        <div class="label">SCORE</div><div id="score" class="value">0</div>
+        <div style="margin-top:20px" class="label">NEXT (2)</div>
+        <div id="next-container">
+            <div id="next1" class="next-preview"></div>
+            <div id="next2" class="next-preview"></div>
+        </div>
+    </div>
+</div>
+
+<script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// --- ゲームロジック変数 ---
+let level = 28, score = 0, linesCleared = 270;
+const ROWS = 20, COLS = 10;
+let arena = Array.from({length: ROWS}, () => new Array(COLS).fill(0));
+let bag = [], nextQueue = [];
+let lockDelay = 0;
+const PIECES = {
+    'I': { m: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], c: 0x00ffff },
+    'J': { m: [[2,0,0],[2,2,2],[0,0,0]], c: 0x0000ff },
+    'L': { m: [[0,0,3],[3,3,3],[0,0,0]], c: 0xffaa00 },
+    'O': { m: [[4,4],[4,4]], c: 0xffff00 },
+    'S': { m: [[0,5,5],[5,5,0],[0,0,0]], c: 0x00ff00 },
+    'T': { m: [[0,6,0],[6,6,6],[0,0,0]], c: 0xaa00ff },
+    'Z': { m: [[7,7,0],[0,7,7],[0,0,0]], c: 0xff0000 }
+};
+
+const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true };
+
+// --- Three.js セットアップ ---
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// ライティング
+const light = new THREE.PointLight(0xffffff, 100);
+light.position.set(5, 10, 10);
+scene.add(light);
+scene.add(new THREE.AmbientLight(0x404040, 2));
+
+// フィールドの枠
+const gridHelper = new THREE.BoxHelper(new THREE.Mesh(new THREE.BoxGeometry(COLS, ROWS, 1)));
+gridHelper.position.set(COLS/2 - 0.5, -ROWS/2 + 0.5, 0);
+scene.add(gridHelper);
+
+camera.position.set(COLS/2, -ROWS/2, 15);
+camera.lookAt(COLS/2, -ROWS/2, 0);
+
+// ブロック描画用
+let cubes = [];
+function updateScene() {
+    cubes.forEach(c => scene.remove(c));
+    cubes = [];
+
+    // アリーナの描画
+    arena.forEach((row, y) => {
+        row.forEach((val, x) => {
+            if (val > 0) addCube(x, -y, 0, getPieceColor(val));
+        });
+    });
+
+    // プレイヤーの描画
+    player.matrix.forEach((row, y) => {
+        row.forEach((val, x) => {
+            if (val > 0) addCube(player.pos.x + x, -(player.pos.y + y), 0, getPieceColor(val));
+        });
+    });
+}
+
+function addCube(x, y, z, color) {
+    const geometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+    const material = new THREE.MeshStandardMaterial({ color: color, roughness: 0.3, metalness: 0.5 });
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.set(x, y, z);
+    scene.add(cube);
+    cubes.push(cube);
+}
+
+function getPieceColor(val) {
+    const key = Object.keys(PIECES).find(k => PIECES[k].m.flat().includes(val));
+    return PIECES[key].c;
+}
+
+// --- コアロジック (2D版を3D用にラップ) ---
+function fillBag() {
+    let p = Object.keys(PIECES);
+    for (let i = p.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [p[i], p[j]] = [p[j], p[i]];
+    }
+    bag.push(...p);
+}
+
+function getNext() {
+    while (nextQueue.length < 5) { if (bag.length === 0) fillBag(); nextQueue.push(bag.shift()); }
+    updateUIPreviews();
+    return nextQueue.shift();
+}
+
+function playerReset() {
+    player.type = getNext();
+    player.matrix = JSON.parse(JSON.stringify(PIECES[player.type].m));
+    player.pos.y = 0; player.pos.x = 3; player.canHold = true;
+    if (collide()) { arena.forEach(r => r.fill(0)); score = 0; level = 28; linesCleared = 270; }
+}
+
+function collide() {
+    const [m, o] = [player.matrix, player.pos];
+    for (let y = 0; y < m.length; ++y) {
+        for (let x = 0; x < m[y].length; ++x) {
+            if (m[y][x] !== 0 && (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0) return true;
+        }
+    }
+    return false;
+}
+
+function merge() {
+    player.matrix.forEach((row, y) => {
+        row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; });
+    });
+}
+
+function arenaSweep() {
+    let cleared = 0;
+    for (let y = ROWS - 1; y >= 0; --y) {
+        if (arena[y].every(v => v !== 0)) { arena.splice(y, 1); arena.unshift(new Array(COLS).fill(0)); cleared++; y++; }
+    }
+    if (cleared > 0) {
+        score += [0, 400, 1000, 3000, 12000][cleared] * (level - 20);
+        linesCleared += cleared; level = Math.min(100, Math.floor(linesCleared / 10) + 1);
+        document.getElementById('score').innerText = score;
+        document.getElementById('level').innerText = level;
+    }
+}
+
+function rotate(matrix) {
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < y; ++x) [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+    }
+    matrix.forEach(row => row.reverse());
+}
+
+// --- 入力系 ---
+window.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft') { player.pos.x--; if(collide()) player.pos.x++; }
+    if (e.key === 'ArrowRight') { player.pos.x++; if(collide()) player.pos.x--; }
+    if (e.key === 'ArrowDown') { player.pos.y++; if(collide()) player.pos.y--; }
+    if (e.key === 'ArrowUp') { 
+        const old = JSON.parse(JSON.stringify(player.matrix));
+        rotate(player.matrix); if(collide()) player.matrix = old;
+    }
+    if (e.key === ' ') { while(!collide()){ player.pos.y++; } player.pos.y--; merge(); playerReset(); arenaSweep(); }
+});
+
+function updateUIPreviews() {
+    // 簡易的な文字表示によるプレビュー（Three.js内での複数レンダリングは重いため）
+    document.getElementById('next1').innerText = nextQueue[0];
+    document.getElementById('next2').innerText = nextQueue[1];
+    document.getElementById('next1').style.color = '#' + PIECES[nextQueue[0]].c.toString(16);
+    document.getElementById('next2').style.color = '#' + PIECES[nextQueue[1]].c.toString(16);
+    document.getElementById('next1').style.display = 'flex';
+    document.getElementById('next1').style.alignItems = 'center';
+    document.getElementById('next1').style.justifyContent = 'center';
+    document.getElementById('next1').style.fontSize = '40px';
+    document.getElementById('next2').style.display = 'flex';
+    document.getElementById('next2').style.alignItems = 'center';
+    document.getElementById('next2').style.justifyContent = 'center';
+    document.getElementById('next2').style.fontSize = '24px';
+}
+
+// --- ループ ---
+let dropCounter = 0, lastTime = 0;
+function animate(time = 0) {
+    const dt = time - lastTime; lastTime = time;
+    dropCounter += dt;
+
+    const gravity = Math.max(30, 160 - (level - 28) * 2);
+    if (dropCounter > gravity) {
+        player.pos.y++;
+        if (collide()) {
+            player.pos.y--;
+            lockDelay += dt;
+            if (lockDelay > 500) {
+                merge(); playerReset(); arenaSweep(); lockDelay = 0;
+            }
+        } else {
+            lockDelay = 0;
+        }
+        dropCounter = 0;
+    }
+
+    updateScene();
+    
+    // カメラの微細な動き
+    camera.position.x = COLS/2 + Math.sin(time/1000) * 0.5;
+    
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+}
+
+playerReset();
+animate();
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
