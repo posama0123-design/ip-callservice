@@ -2,19 +2,17 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - PRO Edition</title>
+    <title>IP-callservice Tetris - HARD MODE v2.0</title>
     <style>
-        body { background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        body { background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
         .game-layout { display: flex; gap: 25px; align-items: flex-start; }
-        #game-container { border: 4px solid #cc0000; background: #000; box-shadow: 0 0 50px rgba(255, 0, 0, 0.3); position: relative; }
+        #game-container { border: 4px solid #cc0000; background: #000; box-shadow: 0 0 50px rgba(255, 0, 0, 0.4); position: relative; }
         .side-panel { display: flex; flex-direction: column; gap: 10px; width: 100px; }
         .info-box { background: #1a0000; padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #440000; }
         .info-label { font-size: 11px; color: #884444; text-transform: uppercase; letter-spacing: 1px; }
-        .info-value { font-size: 20px; font-weight: bold; color: #ff3333; }
+        .info-value { font-size: 20px; font-weight: bold; color: #ff3333; text-shadow: 0 0 8px rgba(255, 51, 51, 0.5); }
         canvas { display: block; }
         canvas.side-canvas { background: #000; border: 1px solid #220000; margin-top: 5px; border-radius: 4px; }
-        #fx-canvas { position: absolute; top: 0; left: 0; pointer-events: none; }
-        .settings-btn { margin-top: 20px; padding: 10px 20px; background: #222; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 5px; }
         #settings-modal { 
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #111; padding: 25px; border: 1px solid #ff3333; border-radius: 10px; z-index: 100;
@@ -23,6 +21,7 @@
         .key-row { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; border-bottom: 1px solid #222; padding-bottom: 5px; }
         .key-input { color: #ff3333; font-weight: bold; min-width: 80px; text-align: right; cursor: pointer; }
         .close-btn { width: 100%; margin-top: 20px; padding: 12px; background: #ff3333; border: none; color: #000; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        .settings-btn { margin-top: 20px; padding: 10px 20px; background: #222; border: 1px solid #444; color: #888; cursor: pointer; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -30,11 +29,10 @@
 <div class="game-layout">
     <div class="side-panel">
         <div class="info-box"><div class="info-label">HOLD</div><canvas id="hold-canvas" class="side-canvas" width="80" height="80"></canvas></div>
-        <div class="info-box" style="margin-top:20px"><div class="info-label">LEVEL</div><div id="level" class="info-value">29</div></div>
+        <div class="info-box" style="margin-top:20px"><div class="info-label">LEVEL</div><div id="level" class="info-value">28</div></div>
     </div>
     <div id="game-container">
         <canvas id="tetris" width="250" height="500"></canvas>
-        <canvas id="fx-canvas" width="250" height="500"></canvas>
     </div>
     <div class="side-panel">
         <div class="info-box"><div class="info-label">SCORE</div><div id="score" class="info-value">0</div></div>
@@ -53,7 +51,6 @@
 <script>
 const canvas = document.getElementById('tetris');
 const context = canvas.getContext('2d');
-const fxCtx = document.getElementById('fx-canvas').getContext('2d');
 const nextCtx = document.getElementById('next-canvas').getContext('2d');
 const holdCtx = document.getElementById('hold-canvas').getContext('2d');
 
@@ -86,14 +83,15 @@ const KICKS = {
 
 let arena = Array.from({length: 20}, () => new Array(10).fill(0));
 let bag = [], nextQueue = [], keys = {};
-let score = 0, level = 29, linesCleared = 280;
+let score = 0, level = 28, linesCleared = 270;
 
 const player = { pos: {x: 3, y: 0}, matrix: null, type: '', hold: null, canHold: true, rotation: 0 };
 
-let dasTimer = 0;
-let arrTimer = 0;
-const DAS_DELAY = 90; 
-const ARR_SPEED = 15; 
+// 接地猶予ロジック
+let lockDelayCounter = 0;
+const LOCK_DELAY_MAX = 500; // 500msの接地猶予
+let dasTimer = 0, arrTimer = 0;
+const DAS_DELAY = 90, ARR_SPEED = 15;
 
 function fillBag() {
     let p = ['I','J','L','O','S','T','Z'];
@@ -110,54 +108,8 @@ function playerReset() {
     player.type = getNext();
     player.matrix = JSON.parse(JSON.stringify(PIECES[player.type]));
     player.rotation = 0; player.pos.y = 0; player.pos.x = 3; player.canHold = true;
-    if (collide(arena, player)) { arena.forEach(row => row.fill(0)); score = 0; level = 29; linesCleared = 280; updateUI(); autoMode = false; }
-    if (autoMode) setTimeout(() => { if(autoMode) runAI(); }, 30);
-}
-
-function runAI() {
-    let bestScore = -Infinity;
-    let bestX = 3, bestRot = 0;
-    const initialMatrix = JSON.parse(JSON.stringify(player.matrix));
-    for (let r = 0; r < 4; r++) {
-        const testMatrix = JSON.parse(JSON.stringify(player.matrix));
-        for (let x = -3; x < 10; x++) {
-            const tempPlayer = { pos: {x, y: 0}, matrix: testMatrix };
-            if (collide(arena, tempPlayer)) continue;
-            while (!collide(arena, tempPlayer)) tempPlayer.pos.y++;
-            tempPlayer.pos.y--;
-            const s = evaluateBoard(tempPlayer);
-            if (s > bestScore) { bestScore = s; bestX = x; bestRot = r; }
-        }
-        rotate(player.matrix, 1);
-    }
-    player.matrix = initialMatrix;
-    for(let i=0; i<bestRot; i++) playerRotate(1);
-    player.pos.x = bestX;
-    playerHardDrop();
-}
-
-function evaluateBoard(p) {
-    let holes = 0, height = 0, bumpiness = 0;
-    const columnHeights = new Array(10).fill(0);
-    for (let x = 0; x < 10; x++) {
-        for (let y = 0; y < 20; y++) {
-            let isSet = arena[y][x] !== 0;
-            const px = x - p.pos.x, py = y - p.pos.y;
-            if (p.matrix[py] && p.matrix[py][px]) isSet = true;
-            if (isSet) { columnHeights[x] = 20 - y; break; }
-        }
-    }
-    for (let x = 0; x < 10; x++) {
-        height += columnHeights[x];
-        if (x < 9) bumpiness += Math.abs(columnHeights[x] - columnHeights[x+1]);
-        for (let y = 20 - columnHeights[x]; y < 20; y++) {
-            let isSet = arena[y][x] !== 0;
-            const px = x - p.pos.x, py = y - p.pos.y;
-            if (p.matrix[py] && p.matrix[py][px]) isSet = true;
-            if (!isSet) holes++;
-        }
-    }
-    return (holes * -25.0) + (bumpiness * -3.0) + (height * -1.5);
+    lockDelayCounter = 0;
+    if (collide(arena, player)) { arena.forEach(row => row.fill(0)); score = 0; level = 28; linesCleared = 270; updateUI(); }
 }
 
 function rotate(matrix, dir) {
@@ -174,7 +126,9 @@ function playerRotate(dir) {
     const kicks = KICKS[kickPattern] || [[0,0]];
     for (const [kx, ky] of kicks) {
         if (!collide(arena, {pos: {x: player.pos.x + kx, y: player.pos.y - ky}, matrix: player.matrix})) {
-            player.pos.x += kx; player.pos.y -= ky; return;
+            player.pos.x += kx; player.pos.y -= ky; 
+            if (isGrounded()) lockDelayCounter = 0; // 回転成功で接地猶予リセット
+            return;
         }
     }
     rotate(player.matrix, -dir); player.rotation = oldRot;
@@ -183,13 +137,24 @@ function playerRotate(dir) {
 function playerMove(dir) {
     player.pos.x += dir;
     if (collide(arena, player)) { player.pos.x -= dir; return false; }
+    if (isGrounded()) lockDelayCounter = 0; // 移動成功で接地猶予リセット
     return true;
+}
+
+function isGrounded() {
+    player.pos.y++;
+    const grounded = collide(arena, player);
+    player.pos.y--;
+    return grounded;
 }
 
 function playerDrop() {
     player.pos.y++;
     if (collide(arena, player)) {
-        player.pos.y--; merge(arena, player); playerReset(); arenaSweep();
+        player.pos.y--;
+        // 接地猶予のチェックはupdate内で行う
+    } else {
+        lockDelayCounter = 0;
     }
 }
 
@@ -235,7 +200,7 @@ function arenaSweep() {
         }
     }
     if (cleared > 0) {
-        score += [0, 400, 1000, 3000, 12000][cleared] * (level - 28);
+        score += [0, 400, 1000, 3000, 12000][cleared] * (level - 20);
         linesCleared += cleared; 
         level = Math.min(100, Math.floor(linesCleared / 10) + 1);
         updateUI();
@@ -250,63 +215,32 @@ function getGhostPos() {
     ghost.pos.y--; return ghost.pos;
 }
 
-// 立体感のあるテクスチャで描画する関数
 function drawBlock(ctx, x, y, colorCode, isGhost = false) {
-    const colors = [
-        null,
-        ['#00ffff', '#80ffff', '#00aaaa'], // I
-        ['#0000ff', '#8080ff', '#0000aa'], // J
-        ['#ffaa00', '#ffd480', '#cc8800'], // L
-        ['#ffff00', '#ffff80', '#aaaa00'], // O
-        ['#00ff00', '#80ff80', '#00aa00'], // S
-        ['#aa00ff', '#d480ff', '#8800cc'], // T
-        ['#ff0000', '#ff8080', '#aa0000'], // Z
-    ];
-    
+    const colors = [null, ['#00ffff', '#80ffff', '#00aaaa'], ['#0000ff', '#8080ff', '#0000aa'], ['#ffaa00', '#ffd480', '#cc8800'], ['#ffff00', '#ffff80', '#aaaa00'], ['#00ff00', '#80ff80', '#00aa00'], ['#aa00ff', '#d480ff', '#8800cc'], ['#ff0000', '#ff8080', '#aa0000']];
     if (colorCode === 0) return;
-
     if (isGhost) {
-        ctx.strokeStyle = '#440000'; // 暗い赤の枠
-        ctx.lineWidth = 0.08;
-        ctx.strokeRect(x, y, 1, 1);
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 0.05; ctx.strokeRect(x, y, 1, 1);
     } else {
         const [main, light, dark] = colors[colorCode];
-        ctx.fillStyle = main;
-        ctx.fillRect(x, y, 1, 1);
-        
-        // ハイライト（立体感）
-        ctx.fillStyle = light;
-        ctx.fillRect(x, y, 1, 0.1);
-        ctx.fillRect(x, y, 0.1, 1);
-        
-        // シャドウ（立体感）
-        ctx.fillStyle = dark;
-        ctx.fillRect(x, y + 0.9, 1, 0.1);
-        ctx.fillRect(x + 0.9, y, 0.1, 1);
-        
-        ctx.lineWidth = 0.05; ctx.strokeStyle = '#fff'; ctx.strokeRect(x, y, 1, 1);
+        ctx.fillStyle = main; ctx.fillRect(x, y, 1, 1);
+        ctx.fillStyle = light; ctx.fillRect(x, y, 1, 0.1); ctx.fillRect(x, y, 0.1, 1);
+        ctx.fillStyle = dark; ctx.fillRect(x, y + 0.9, 1, 0.1); ctx.fillRect(x + 0.9, y, 0.1, 1);
     }
-}
-
-function drawMatrix(matrix, offset, ctx, isGhost = false) {
-    matrix.forEach((row, y) => {
-        row.forEach((val, x) => {
-            drawBlock(ctx, x + offset.x, y + offset.y, val, isGhost);
-        });
-    });
 }
 
 function draw() {
     context.fillStyle = '#000'; context.fillRect(0, 0, 10, 20);
-    drawMatrix(arena, {x: 0, y: 0}, context);
-    drawMatrix(player.matrix, getGhostPos(), context, true);
-    drawMatrix(player.matrix, player.pos, context);
+    arena.forEach((row, y) => row.forEach((val, x) => drawBlock(context, x, y, val)));
+    const gp = getGhostPos();
+    player.matrix.forEach((row, y) => row.forEach((val, x) => drawBlock(context, x + gp.x, y + gp.y, val, true)));
+    player.matrix.forEach((row, y) => row.forEach((val, x) => drawBlock(context, x + player.pos.x, y + player.pos.y, val)));
     
-    // UI canvases (NEXT/HOLD)
     nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 4, 15);
-    nextQueue.slice(0, 5).forEach((p, i) => drawMatrix(PIECES[p], {x: 0, y: i * 3}, nextCtx));
+    nextQueue.slice(0, 5).forEach((p, i) => {
+        PIECES[p].forEach((row, y) => row.forEach((val, x) => drawBlock(nextCtx, x, y + i * 3, val)));
+    });
     holdCtx.fillStyle = '#000'; holdCtx.fillRect(0, 0, 4, 4);
-    if (player.hold) drawMatrix(PIECES[player.hold], {x: 0, y: 0}, holdCtx);
+    if (player.hold) PIECES[player.hold].forEach((row, y) => row.forEach((val, x) => drawBlock(holdCtx, x, y, val)));
 }
 
 let dropCounter = 0, lastTime = 0;
@@ -314,27 +248,39 @@ function update(time = 0) {
     if (isSetting) { lastTime = time; requestAnimationFrame(update); return; }
     const dt = time - lastTime; lastTime = time;
     dropCounter += dt;
-    if (!autoMode) {
-        const moveLeft = keys[binds.left], moveRight = keys[binds.right];
-        if (moveLeft || moveRight) {
-            const dir = moveLeft ? -1 : 1;
-            if (dasTimer === 0) playerMove(dir);
-            dasTimer += dt;
-            if (dasTimer > DAS_DELAY) { arrTimer += dt; if (arrTimer > ARR_SPEED) { playerMove(dir); arrTimer = 0; } }
-        } else { dasTimer = 0; arrTimer = 0; }
-        const gravity = Math.max(30, 150 - (level - 29) * 1.7);
-        const currentInterval = (keys[binds.softDrop]) ? 15 : gravity;
-        if (dropCounter > currentInterval) { playerDrop(); dropCounter = 0; }
+
+    // 横移動
+    const moveLeft = keys[binds.left], moveRight = keys[binds.right];
+    if (moveLeft || moveRight) {
+        const dir = moveLeft ? -1 : 1;
+        if (dasTimer === 0) playerMove(dir);
+        dasTimer += dt;
+        if (dasTimer > DAS_DELAY) { arrTimer += dt; if (arrTimer > ARR_SPEED) { playerMove(dir); arrTimer = 0; } }
+    } else { dasTimer = 0; arrTimer = 0; }
+
+    // 落下と接地猶予
+    const gravity = Math.max(30, 160 - (level - 28) * 1.8);
+    const currentInterval = (keys[binds.softDrop]) ? 15 : gravity;
+
+    if (isGrounded()) {
+        lockDelayCounter += dt;
+        if (lockDelayCounter >= LOCK_DELAY_MAX) {
+            merge(arena, player); playerReset(); arenaSweep();
+        }
+    } else {
+        if (dropCounter > currentInterval) {
+            playerDrop();
+            dropCounter = 0;
+        }
     }
+
     draw(); requestAnimationFrame(update);
 }
 
 window.addEventListener('keydown', e => {
-    secretBuffer += e.key; if (secretBuffer.endsWith("10293847")) { autoMode = !autoMode; if(autoMode) runAI(); secretBuffer = ""; }
     if (isSetting) return;
     const k = e.key; 
     if (!keys[k]) {
-        if ([binds.left, binds.right, binds.rotateRight, binds.rotateLeft, binds.hardDrop, binds.hold].includes(k)) autoMode = false;
         if (k === binds.rotateRight) playerRotate(1);
         if (k === binds.rotateLeft) playerRotate(-1);
         if (k === binds.hardDrop) { e.preventDefault(); playerHardDrop(); }
