@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TETRIS - Selection Screen</title>
     <style>
-        /* 全体のレイアウト設定 */
         body {
             margin: 0;
             padding: 0;
-            background-color: #000; /* 背景は真っ黒 */
+            background-color: #000;
             color: #fff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -24,42 +23,32 @@
             z-index: 10;
         }
 
-        /* テトリスロゴのスタイル */
         .logo {
             font-size: 100px;
             font-weight: 900;
-            margin-bottom: 60px;
+            margin-bottom: 50px;
             letter-spacing: 8px;
             text-transform: uppercase;
-            /* ゲーミング風のグローエフェクト */
             text-shadow: 0 0 10px #00d2ff, 0 0 20px #00d2ff, 0 0 40px #00d2ff;
             animation: pulse 2.5s infinite alternate;
         }
 
         @keyframes pulse {
-            0% {
-                text-shadow: 0 0 10px #00d2ff, 0 0 20px #00d2ff;
-                transform: scale(1);
-            }
-            100% {
-                text-shadow: 0 0 20px #ff0055, 0 0 40px #ff0055;
-                transform: scale(1.05);
-            }
+            0% { text-shadow: 0 0 10px #00d2ff, 0 0 20px #00d2ff; transform: scale(1); }
+            100% { text-shadow: 0 0 20px #ff0055, 0 0 40px #ff0055; transform: scale(1.05); }
         }
 
-        /* ボタンを包むグループ */
         .button-group {
             display: flex;
             flex-direction: column;
-            gap: 25px;
+            gap: 20px;
             align-items: center;
         }
 
-        /* 共通ボタンスタイル */
         .btn {
             width: 280px;
-            padding: 18px;
-            font-size: 28px;
+            padding: 15px;
+            font-size: 24px;
             font-weight: bold;
             cursor: pointer;
             border: 4px solid #fff;
@@ -71,7 +60,7 @@
             outline: none;
         }
 
-        /* 1つ目のボタン (NORMAL) */
+        /* 各ボタンのホバー色設定 */
         .normal-btn:hover {
             background-color: #00d2ff;
             box-shadow: 0 0 30px #00d2ff;
@@ -79,7 +68,6 @@
             color: #000;
         }
 
-        /* 2つ目のボタン (HARD) */
         .hard-btn:hover {
             background-color: #ff0055;
             box-shadow: 0 0 30px #ff0055;
@@ -87,12 +75,18 @@
             color: #000;
         }
 
-        /* クリックした時の沈む動き */
+        /* 3Dボタン：ネオンなグリーン */
+        .three-d-btn:hover {
+            background-color: #39ff14;
+            box-shadow: 0 0 30px #39ff14;
+            border-color: #39ff14;
+            color: #000;
+        }
+
         .btn:active {
             transform: scale(0.9);
         }
 
-        /* 背景に少しドット模様を入れてレトロ感を出す（隠し味） */
         .bg-dots {
             position: absolute;
             top: 0;
@@ -114,15 +108,13 @@
         
         <div class="button-group">
             <button onclick="navigate('nomal.html')" class="btn normal-btn">NORMAL</button>
-            
             <button onclick="navigate('hard.html')" class="btn hard-btn">HARD</button>
+            <button onclick="navigate('3d.html')" class="btn three-d-btn">3D MODE</button>
         </div>
     </div>
 
     <script>
-        // ボタンを押した時の処理
         function navigate(page) {
-            console.log("Navigating to: " + page);
             window.location.href = page;
         }
     </script>
