@@ -2,18 +2,16 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>IP-callservice Tetris - Pro Online</title>
+    <title>IP-callservice Tetris - Pro v2</title>
     <style>
         body { background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        .game-layout { display: flex; gap: 30px; align-items: flex-start; }
+        .game-layout { display: flex; gap: 20px; align-items: flex-start; }
         .field-container { border: 4px solid #444; background: #000; position: relative; }
-        .enemy-field { border: 4px solid #833; opacity: 0.7; transform: scale(0.85); }
+        .enemy-field { border: 4px solid #833; opacity: 0.6; transform: scale(0.8); }
         .side-panel { display: flex; flex-direction: column; gap: 10px; width: 90px; }
         .info-box { background: #111; padding: 10px; border-radius: 4px; text-align: center; border: 1px solid #333; }
         .info-label { font-size: 10px; color: #666; }
-        .info-value { font-size: 20px; font-weight: bold; color: #0dc2ff; }
-        canvas { display: block; }
-        .player-label { text-align: center; font-weight: bold; margin-bottom: 5px; font-size: 12px; }
+        canvas { display: block; margin: 0 auto; }
         #settings-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; padding: 20px; border: 1px solid #0dc2ff; z-index: 100; width: 280px; }
     </style>
 </head>
@@ -21,31 +19,30 @@
 
 <div class="game-layout">
     <div>
-        <div class="player-label" style="color:#0dc2ff">YOU</div>
+        <div style="text-align:center; color:#0dc2ff; font-weight:bold; margin-bottom:5px;">YOU</div>
         <div style="display: flex; gap: 10px;">
             <div class="side-panel">
                 <div class="info-box"><div class="info-label">HOLD</div><canvas id="hold-canvas" width="80" height="80"></canvas></div>
-                <div class="info-box"><div class="info-label">SCORE</div><div id="score" class="info-value">0</div></div>
+                <div class="info-box"><div class="info-label">SCORE</div><div id="score" style="font-size:18px; color:#0dc2ff">0</div></div>
             </div>
-            <div class="field-container">
-                <canvas id="tetris" width="250" height="500"></canvas>
+            <div class="field-container"><canvas id="tetris" width="250" height="500"></canvas></div>
+            <div class="side-panel">
+                <div class="info-box"><div class="info-label">NEXT</div><canvas id="next-canvas" width="80" height="240"></canvas></div>
             </div>
         </div>
     </div>
     <div>
-        <div class="player-label" style="color:#ff4444">ENEMY</div>
-        <div class="field-container enemy-field">
-            <canvas id="enemy-tetris" width="250" height="500"></canvas>
-        </div>
+        <div style="text-align:center; color:#ff4444; font-weight:bold; margin-bottom:5px;">ENEMY</div>
+        <div class="field-container enemy-field"><canvas id="enemy-tetris" width="250" height="500"></canvas></div>
     </div>
 </div>
 
-<button style="margin-top:15px;" onclick="openSettings()">CONTROLS</button>
+<button style="margin-top:15px; background:#333; color:#fff; border:1px solid #555; cursor:pointer;" onclick="openSettings()">CONTROLS</button>
 
 <div id="settings-modal">
-    <h3 style="margin:0 0 10px 0; font-size:14px;">KEY CONFIG</h3>
+    <h3 style="margin:0 0 10px 0; font-size:14px; color:#0dc2ff">KEY CONFIG</h3>
     <div id="config-list"></div>
-    <button style="width:100%; margin-top:10px; background:#0dc2ff; border:none; padding:8px;" onclick="closeSettings()">SAVE</button>
+    <button style="width:100%; margin-top:10px; background:#0dc2ff; border:none; padding:8px; cursor:pointer" onclick="closeSettings()">SAVE</button>
 </div>
 
 <script type="module">
@@ -70,10 +67,9 @@ const canvas = document.getElementById('tetris');
 const context = canvas.getContext('2d');
 const enemyCtx = document.getElementById('enemy-tetris').getContext('2d');
 const holdCtx = document.getElementById('hold-canvas').getContext('2d');
+const nextCtx = document.getElementById('next-canvas').getContext('2d');
 
-context.scale(25, 25);
-enemyCtx.scale(25, 25);
-holdCtx.scale(20, 20);
+context.scale(25, 25); enemyCtx.scale(25, 25); holdCtx.scale(20, 20); nextCtx.scale(20, 20);
 
 let binds = JSON.parse(localStorage.getItem('tetris_binds')) || {
     left: 'ArrowLeft', right: 'ArrowRight', softDrop: 'ArrowDown',
@@ -90,28 +86,30 @@ const PIECES = {
     'Z': [[7,7,0],[0,7,7],[0,0,0]],
 };
 
-// --- 7種一巡 (7-Bag) ロジック ---
 let bag = [];
-function getNextPiece() {
-    if (bag.length === 0) {
-        bag = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
-        for (let i = bag.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [bag[i], bag[j]] = [bag[j], bag[i]];
-        }
+let nextQueue = [];
+function fillBag() {
+    let newBag = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+    for (let i = newBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [newBag[i], newBag[j]] = [newBag[j], newBag[i]];
     }
-    return bag.pop();
+    bag = [...bag, ...newBag];
+}
+
+function getNextFromQueue() {
+    while(bag.length < 7) fillBag();
+    const type = bag.shift();
+    nextQueue.push(type);
+    if(nextQueue.length > 4) return nextQueue.shift();
+    return getNextFromQueue();
 }
 
 let arena = Array.from({length: 20}, () => new Array(10).fill(0));
 let player = { pos: {x: 0, y: 0}, matrix: null, type: '', hold: null, canHold: true };
-let score = 0, isGameOver = false, isSetting = false;
-let keys = {};
-
-// --- DAS / ARR ロジック用 ---
-let dasTimer = 0;
-const DAS_DELAY = 150; // 高速移動開始までの時間(ms)
-const ARR_SPEED = 30;  // 高速移動中の間隔(ms)
+let score = 0, isGameOver = false, isSetting = false, keys = {};
+let dasTimer = 0, lastTime = 0, dropCounter = 0;
+const DAS_DELAY = 150, ARR_SPEED = 30;
 
 function drawMatrix(matrix, offset, ctx, isGhost = false) {
     const colors = [null, '#00f0f0', '#0000f0', '#f0a000', '#f0f000', '#00f000', '#a000f0', '#f00000'];
@@ -142,11 +140,12 @@ function collide(arena, player) {
 }
 
 function playerReset() {
-    player.type = getNextPiece();
+    player.type = getNextFromQueue();
     player.matrix = PIECES[player.type];
     player.pos.y = 0;
     player.pos.x = 3;
     player.canHold = true;
+    drawNext();
     if (collide(arena, player)) {
         isGameOver = true;
         set(ref(db, `battle/players/${myId}/lost`), true);
@@ -154,24 +153,40 @@ function playerReset() {
     }
 }
 
-function playerMove(dir) {
-    player.pos.x += dir;
-    if (collide(arena, player)) { player.pos.x -= dir; return false; }
-    return true;
+function drawNext() {
+    nextCtx.fillStyle = '#000'; nextCtx.fillRect(0, 0, 4, 12);
+    nextQueue.slice(0, 3).forEach((type, i) => {
+        drawMatrix(PIECES[type], {x: 0, y: i * 4}, nextCtx);
+    });
+}
+
+function lockPiece() {
+    player.matrix.forEach((row, y) => {
+        row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; });
+    });
+    // 消去
+    outer: for (let y = arena.length - 1; y > 0; --y) {
+        if (arena[y].every(v => v !== 0)) {
+            arena.splice(y, 1); arena.unshift(new Array(10).fill(0));
+            score += 100; y++;
+        }
+    }
+    document.getElementById('score').innerText = score;
+    playerReset();
 }
 
 function update(time = 0) {
     if (isSetting || isGameOver) { requestAnimationFrame(update); return; }
     const dt = time - lastTime; lastTime = time;
     
-    // DAS処理 (横移動の高速化)
+    // DAS
     if (keys[binds.left] || keys[binds.right]) {
         dasTimer += dt;
         const dir = keys[binds.left] ? -1 : 1;
-        if (dasTimer === dt) playerMove(dir); // 押し始めに1回移動
+        if (dasTimer === dt) { player.pos.x += dir; if(collide(arena, player)) player.pos.x -= dir; }
         if (dasTimer > DAS_DELAY) {
             if (dasTimer > DAS_DELAY + ARR_SPEED) {
-                playerMove(dir);
+                player.pos.x += dir; if(collide(arena, player)) player.pos.x -= dir;
                 dasTimer = DAS_DELAY;
             }
         }
@@ -180,27 +195,10 @@ function update(time = 0) {
     dropCounter += dt;
     if (dropCounter > (keys[binds.softDrop] ? 50 : 800)) {
         player.pos.y++;
-        if (collide(arena, player)) {
-            player.pos.y--;
-            player.matrix.forEach((row, y) => {
-                row.forEach((val, x) => { if (val !== 0) arena[y + player.pos.y][x + player.pos.x] = val; });
-            });
-            playerReset();
-            // ライン消去
-            outer: for (let y = arena.length - 1; y > 0; --y) {
-                if (arena[y].every(v => v !== 0)) {
-                    arena.splice(y, 1);
-                    arena.unshift(new Array(10).fill(0));
-                    score += 100;
-                    y++;
-                }
-            }
-            document.getElementById('score').innerText = score;
-        }
+        if (collide(arena, player)) { player.pos.y--; lockPiece(); }
         dropCounter = 0;
     }
 
-    // 描画
     context.fillStyle = '#000'; context.fillRect(0, 0, 10, 20);
     drawMatrix(arena, {x:0,y:0}, context);
     const ghost = {pos:{x:player.pos.x, y:player.pos.y}, matrix:player.matrix};
@@ -212,9 +210,8 @@ function update(time = 0) {
     requestAnimationFrame(update);
 }
 
-// キー入力管理
 window.addEventListener('keydown', e => {
-    if (isSetting) return;
+    if (isSetting || isGameOver) return;
     keys[e.key] = true;
     if (e.key === binds.rotateRight) {
         const m = player.matrix.map(row => [...row]);
@@ -223,8 +220,9 @@ window.addEventListener('keydown', e => {
         if (!collide(arena, {pos:player.pos, matrix:m})) player.matrix = m;
     }
     if (e.key === binds.hardDrop) {
+        e.preventDefault();
         while(!collide(arena, player)) player.pos.y++;
-        player.pos.y--; dropCounter = 999; 
+        player.pos.y--; lockPiece();
     }
     if (e.key === binds.hold && player.canHold) {
         const t = player.type;
@@ -237,21 +235,19 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => keys[e.key] = false);
 
-// 相手の同期
 onValue(ref(db, `battle/players`), s => {
     const d = s.val();
     for (let id in d) if (id !== myId) {
         enemyCtx.fillStyle='#000'; enemyCtx.fillRect(0,0,10,20);
         if (d[id].arena) drawMatrix(d[id].arena, {x:0,y:0}, enemyCtx);
         if (d[id].matrix) drawMatrix(d[id].matrix, d[id].pos, enemyCtx);
-        if (d[id].lost && !isGameOver) { isGameOver = true; alert("勝ちました！"); }
+        if (d[id].lost && !isGameOver) { isGameOver = true; alert("相手が負けました。あなたの勝ち！"); }
     }
 });
 
-let dropCounter = 0, lastTime = 0;
-// 設定と初期化は前と同じ
-window.openSettings = () => { isSetting = true; document.getElementById('settings-modal').style.display = 'block'; /* ...前と同じ... */ };
-window.closeSettings = () => { isSetting = false; document.getElementById('settings-modal').style.display = 'none'; };
+// 設定モーダル用
+window.openSettings = () => { /* 前と同じ */ };
+window.closeSettings = () => { /* 前と同じ */ };
 
 onDisconnect(ref(db, `battle/players/${myId}`)).remove();
 playerReset(); update();
