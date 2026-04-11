@@ -4,393 +4,438 @@
 <meta charset="UTF-8">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;padding:12px 0}
-.game-layout{display:flex;gap:16px;align-items:flex-start}
-.side-panel{display:flex;flex-direction:column;gap:8px;width:88px}
-.info-box{background:#111;padding:8px;border-radius:4px;text-align:center;border:1px solid #2a2a2a}
-.info-label{font-size:10px;color:#555;margin-bottom:4px;letter-spacing:1px}
+body{background:#0a0a0f;color:#fff;font-family:'Segoe UI',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;padding:10px 0;overflow-x:hidden}
+.game-layout{display:flex;gap:14px;align-items:flex-start}
+.side-panel{display:flex;flex-direction:column;gap:7px;width:82px}
+.info-box{background:#111;padding:7px;border-radius:4px;text-align:center;border:1px solid #222}
+.info-label{font-size:9px;color:#555;margin-bottom:3px;letter-spacing:1px}
 canvas{display:block}
 .field-wrap{border:2px solid #333;background:#000;position:relative}
-.enemy-wrap{border:2px solid #532;opacity:.55;transform:scale(.75);transform-origin:top left}
-#modal{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2a;padding:16px;border:1px solid #0dc2ff;z-index:99;width:280px;border-radius:6px}
-#modal h3{font-size:13px;color:#0dc2ff;margin-bottom:10px;letter-spacing:1px}
-.bind-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:12px}
-.bind-key{background:#222;border:1px solid #444;padding:3px 8px;border-radius:3px;min-width:70px;text-align:center;cursor:pointer;color:#fff;font-size:11px}
+.enemy-wrap{border:2px solid #532;background:#000}
+#modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a2a;padding:16px;border:1px solid #0dc2ff;z-index:200;width:280px;border-radius:6px}
+#modal h3{font-size:12px;color:#0dc2ff;margin-bottom:10px;letter-spacing:1px}
+.bind-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:11px}
+.bind-key{background:#222;border:1px solid #444;padding:3px 8px;border-radius:3px;min-width:70px;text-align:center;cursor:pointer;color:#fff;font-size:10px}
 .bind-key.waiting{border-color:#0dc2ff;color:#0dc2ff}
-.modal-btn{width:100%;margin-top:10px;background:#0dc2ff;border:none;padding:7px;cursor:pointer;border-radius:3px;font-weight:bold;color:#000}
-.gameover-overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.75);flex-direction:column;align-items:center;justify-content:center;font-size:20px;font-weight:bold;color:#fff;z-index:50}
-.gameover-overlay.show{display:flex}
-.restart-btn{margin-top:12px;background:#222;border:1px solid #555;color:#fff;padding:6px 16px;cursor:pointer;font-size:13px;border-radius:3px}
+.modal-btn{width:100%;margin-top:8px;background:#0dc2ff;border:none;padding:6px;cursor:pointer;border-radius:3px;font-weight:bold;color:#000;font-size:12px}
+.overlay{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.82);flex-direction:column;align-items:center;justify-content:center;z-index:50;border-radius:2px}
+.overlay.show{display:flex}
+.overlay-title{font-size:17px;font-weight:bold;margin-bottom:8px}
+.restart-btn{background:#222;border:1px solid #555;color:#fff;padding:5px 14px;cursor:pointer;font-size:11px;border-radius:3px;margin-top:8px}
+#attack-flash{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,80,80,.18);pointer-events:none;opacity:0;transition:opacity .1s;z-index:30}
+#tspin-label{position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);font-size:13px;font-weight:bold;color:#a0f;pointer-events:none;opacity:0;text-shadow:0 0 6px #a0f;transition:opacity .4s;z-index:40}
+.lobby{display:flex;flex-direction:column;align-items:center;gap:10px;padding:30px}
+.lobby h2{color:#0dc2ff;font-size:18px;letter-spacing:2px}
+.lobby input{background:#111;border:1px solid #444;color:#fff;padding:7px 12px;border-radius:4px;font-size:13px;width:220px;text-align:center}
+.lobby button{background:#0dc2ff;border:none;color:#000;padding:8px 20px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:13px}
+.lobby .sec{color:#888;font-size:11px;margin-top:4px}
+#status-bar{font-size:11px;color:#888;min-height:16px;text-align:center;margin-bottom:6px}
 </style>
 </head>
 <body>
-<div class="game-layout">
-  <div>
-    <div style="text-align:center;color:#0dc2ff;font-weight:bold;font-size:12px;letter-spacing:2px;margin-bottom:6px">YOU</div>
-    <div style="display:flex;gap:10px">
-      <div class="side-panel">
-        <div class="info-box">
-          <div class="info-label">HOLD</div>
-          <canvas id="hold-canvas" width="80" height="80"></canvas>
-        </div>
-        <div class="info-box">
-          <div class="info-label">SCORE</div>
-          <div id="score" style="font-size:18px;color:#0dc2ff;font-weight:bold">0</div>
-        </div>
-        <div class="info-box">
-          <div class="info-label">LINES</div>
-          <div id="lines" style="font-size:15px;color:#aaa">0</div>
-        </div>
-        <div class="info-box">
-          <div class="info-label">LEVEL</div>
-          <div id="level" style="font-size:15px;color:#fa0">1</div>
-        </div>
-      </div>
-      <div style="position:relative">
-        <div class="field-wrap">
-          <canvas id="tetris" width="250" height="500"></canvas>
-        </div>
-        <div class="gameover-overlay" id="gameover">
-          <div id="gameover-msg">GAME OVER</div>
-          <button class="restart-btn" onclick="restartGame()">RESTART</button>
-        </div>
-      </div>
-      <div class="side-panel">
-        <div class="info-box">
-          <div class="info-label">NEXT</div>
-          <canvas id="next-canvas" width="80" height="400"></canvas>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div>
-    <div style="text-align:center;color:#f44;font-weight:bold;font-size:12px;letter-spacing:2px;margin-bottom:6px">ENEMY</div>
-    <div class="enemy-wrap field-wrap">
-      <canvas id="enemy-tetris" width="250" height="500"></canvas>
-    </div>
-  </div>
+
+<div id="lobby-screen" class="lobby">
+  <h2>TETRIS BATTLE</h2>
+  <div style="color:#aaa;font-size:12px">ルーム名を入力して参加（同じ名前で2人入れば対戦開始）</div>
+  <input id="room-input" placeholder="ルーム名（例: room1）" maxlength="20">
+  <input id="name-input" placeholder="プレイヤー名（任意）" maxlength="12">
+  <button onclick="joinRoom()">JOIN / CREATE ROOM</button>
+  <div class="sec">一人でも遊べます（SOLO）</div>
+  <button onclick="startSolo()" style="background:#222;color:#aaa;border:1px solid #444;font-size:11px;padding:5px 12px">SOLO PLAY</button>
 </div>
 
-<button style="margin-top:12px;background:#222;color:#aaa;border:1px solid #444;cursor:pointer;padding:5px 14px;font-size:12px;border-radius:3px" onclick="openSettings()">⚙ CONTROLS</button>
+<div id="game-screen" style="display:none;flex-direction:column;align-items:center">
+  <div id="status-bar">接続中...</div>
+  <div class="game-layout">
+    <div>
+      <div id="my-name-label" style="text-align:center;color:#0dc2ff;font-weight:bold;font-size:11px;letter-spacing:2px;margin-bottom:5px">YOU</div>
+      <div style="display:flex;gap:9px">
+        <div class="side-panel">
+          <div class="info-box"><div class="info-label">HOLD</div><canvas id="hold-canvas" width="80" height="80"></canvas></div>
+          <div class="info-box"><div class="info-label">SCORE</div><div id="score" style="font-size:16px;color:#0dc2ff;font-weight:bold">0</div></div>
+          <div class="info-box"><div class="info-label">LINES</div><div id="lines" style="font-size:13px;color:#aaa">0</div></div>
+          <div class="info-box"><div class="info-label">LEVEL</div><div id="level" style="font-size:13px;color:#fa0">1</div></div>
+          <div class="info-box"><div class="info-label">COMBO</div><div id="combo" style="font-size:13px;color:#0f8">0</div></div>
+        </div>
+        <div style="position:relative">
+          <div class="field-wrap">
+            <canvas id="tetris" width="250" height="500"></canvas>
+          </div>
+          <div id="attack-flash"></div>
+          <div id="tspin-label"></div>
+          <div class="overlay" id="gameover">
+            <div class="overlay-title" id="gameover-msg">GAME OVER</div>
+            <button class="restart-btn" onclick="restartGame()">RESTART</button>
+          </div>
+        </div>
+        <div class="side-panel">
+          <div class="info-box"><div class="info-label">NEXT</div><canvas id="next-canvas" width="80" height="400"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div id="enemy-name-label" style="text-align:center;color:#f44;font-weight:bold;font-size:11px;letter-spacing:2px;margin-bottom:5px">ENEMY</div>
+      <div class="enemy-wrap field-wrap" style="position:relative">
+        <canvas id="enemy-tetris" width="200" height="400"></canvas>
+        <div class="overlay" id="enemy-gameover"><div class="overlay-title" style="color:#0f8" id="win-msg">YOU WIN!</div></div>
+      </div>
+      <div id="enemy-score-box" style="text-align:center;font-size:11px;color:#888;margin-top:4px">SCORE: <span id="enemy-score">0</span></div>
+    </div>
+  </div>
+  <button style="margin-top:10px;background:#222;color:#aaa;border:1px solid #444;cursor:pointer;padding:4px 12px;font-size:11px;border-radius:3px" onclick="openSettings()">⚙ CONTROLS</button>
+</div>
 
 <div id="modal">
-  <h3>KEY CONFIG — click a key to remap</h3>
+  <h3>KEY CONFIG — クリックでリマップ</h3>
   <div id="config-list"></div>
   <button class="modal-btn" onclick="closeSettings()">CLOSE</button>
 </div>
 
-<script>
-const LABELS = {left:'Move Left',right:'Move Right',softDrop:'Soft Drop',hardDrop:'Hard Drop',rotateRight:'Rotate CW',rotateLeft:'Rotate CCW',hold:'Hold'};
-const DEFAULT_BINDS = {left:'ArrowLeft',right:'ArrowRight',softDrop:'ArrowDown',hardDrop:' ',rotateRight:'ArrowUp',rotateLeft:'q',hold:'c'};
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, onDisconnect, push, get, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-let binds = JSON.parse(localStorage.getItem('tetris_binds2') || 'null') || {...DEFAULT_BINDS};
+const firebaseConfig = {
+  apiKey:"AIzaSyAWHrtJVR6ZbyzI5JvXcfc6demV9DTD0cw",
+  authDomain:"samon-4a57a.firebaseapp.com",
+  databaseURL:"https://samon-4a57a-default-rtdb.firebaseio.com",
+  projectId:"samon-4a57a",
+  storageBucket:"samon-4a57a.firebasestorage.app",
+  messagingSenderId:"186690963747",
+  appId:"1:186690963747:web:3b29ffcc9b643d2f302496"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const LABELS = {left:'Move Left',right:'Move Right',softDrop:'Soft Drop',hardDrop:'Hard Drop',rotateRight:'Rotate CW',rotateLeft:'Rotate CCW',hold:'Hold'};
+let binds = JSON.parse(localStorage.getItem('tetris_binds3')||'null') || {left:'ArrowLeft',right:'ArrowRight',softDrop:'ArrowDown',hardDrop:' ',rotateRight:'ArrowUp',rotateLeft:'q',hold:'c'};
 let waitingBind = null;
 
-function openSettings() {
-  isSetting = true;
-  const list = document.getElementById('config-list');
-  list.innerHTML = '';
-  for (const k in LABELS) {
-    const row = document.createElement('div');
-    row.className = 'bind-row';
-    row.innerHTML = `<span style="color:#aaa">${LABELS[k]}</span><span class="bind-key" id="bindkey-${k}" onclick="startRemap('${k}')">${binds[k] === ' ' ? 'Space' : binds[k]}</span>`;
-    list.appendChild(row);
-  }
-  document.getElementById('modal').style.display = 'block';
+const PIECES = {I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],J:[[2,0,0],[2,2,2],[0,0,0]],L:[[0,0,3],[3,3,3],[0,0,0]],O:[[4,4],[4,4]],S:[[0,5,5],[5,5,0],[0,0,0]],T:[[0,6,0],[6,6,6],[0,0,0]],Z:[[7,7,0],[0,7,7],[0,0,0]]};
+const COLORS = [null,'#00f0f0','#1040ff','#f0a000','#f0f000','#00c000','#a000f0','#f02020'];
+
+const KICKS_JLSTZ = {'0_1':[[-1,0],[-1,-1],[0,2],[-1,2]],'1_0':[[1,0],[1,1],[0,-2],[1,-2]],'1_2':[[1,0],[1,1],[0,-2],[1,-2]],'2_1':[[-1,0],[-1,-1],[0,2],[-1,2]],'2_3':[[1,0],[1,-1],[0,2],[1,2]],'3_2':[[-1,0],[-1,1],[0,-2],[-1,-2]],'3_0':[[-1,0],[-1,1],[0,-2],[-1,-2]],'0_3':[[1,0],[1,-1],[0,2],[1,2]]};
+const KICKS_I = {'0_1':[[-2,0],[1,0],[-2,1],[1,-2]],'1_0':[[2,0],[-1,0],[2,-1],[-1,2]],'1_2':[[-1,0],[2,0],[-1,-2],[2,1]],'2_1':[[1,0],[-2,0],[1,2],[-2,-1]],'2_3':[[2,0],[-1,0],[2,-1],[-1,2]],'3_2':[[-2,0],[1,0],[-2,1],[1,-2]],'3_0':[[1,0],[-2,0],[1,2],[-2,-1]],'0_3':[[-1,0],[2,0],[-1,-2],[2,1]]};
+
+// T-spin detection corners
+function checkTSpin(arena, p) {
+  if (p.type !== 'T') return 'none';
+  const cx = p.pos.x+1, cy = p.pos.y+1;
+  const corners = [[cx-1,cy-1],[cx+1,cy-1],[cx+1,cy+1],[cx-1,cy+1]];
+  const filled = corners.map(([x,y]) => !arena[y] || arena[y][x] === undefined || arena[y][x] !== 0);
+  const filledCount = filled.filter(Boolean).length;
+  if (filledCount < 3) return 'none';
+  // front corners (relative to rotation state)
+  const frontMap = {0:[0,1],1:[1,3],2:[2,3],3:[0,2]};
+  const front = frontMap[p.rotState] || [0,1];
+  const frontFilled = front.filter(i => filled[i]).length;
+  if (frontFilled === 2) return 'tspin';
+  if (filledCount >= 3) return 'mini';
+  return 'none';
 }
 
-function startRemap(action) {
-  if (waitingBind) {
-    document.getElementById('bindkey-' + waitingBind).classList.remove('waiting');
-  }
-  waitingBind = action;
-  const el = document.getElementById('bindkey-' + action);
-  el.textContent = '...';
-  el.classList.add('waiting');
-}
+let myId = 'p_' + Math.random().toString(36).slice(2,8);
+let roomId = null, enemyId = null, isSolo = false;
+let myName = 'YOU', enemyName = 'ENEMY';
 
-function closeSettings() {
-  if (waitingBind) {
-    document.getElementById('bindkey-' + waitingBind).classList.remove('waiting');
-    waitingBind = null;
-  }
-  localStorage.setItem('tetris_binds2', JSON.stringify(binds));
-  document.getElementById('modal').style.display = 'none';
-  isSetting = false;
-}
+let bag=[], nextQueue=[];
+function fillBag(){let b=['I','J','L','O','S','T','Z'];for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]];}bag.push(...b);}
+function getNext(){while(bag.length<14)fillBag();return bag.shift();}
+function ensureQueue(){while(nextQueue.length<6)nextQueue.push(getNext());}
 
-window.addEventListener('keydown', e => {
-  if (waitingBind) {
-    e.preventDefault();
-    binds[waitingBind] = e.key;
-    const el = document.getElementById('bindkey-' + waitingBind);
-    if (el) { el.textContent = e.key === ' ' ? 'Space' : e.key; el.classList.remove('waiting'); }
-    waitingBind = null;
-    return;
-  }
-  if (isSetting || isGameOver) return;
-  keys[e.key] = true;
-  if (e.key === binds.rotateRight) { e.preventDefault(); doRotate(1); }
-  if (e.key === binds.rotateLeft)  { e.preventDefault(); doRotate(-1); }
-  if (e.key === binds.hardDrop)    { e.preventDefault(); doHardDrop(); }
-  if (e.key === binds.hold)        { e.preventDefault(); doHold(); }
-  if (e.key === binds.left && !keys._dasL)  { keys._dasL = true; movePlayer(-1); dasTimerL = 0; }
-  if (e.key === binds.right && !keys._dasR) { keys._dasR = true; movePlayer(1); dasTimerR = 0; }
-});
-window.addEventListener('keyup', e => {
-  keys[e.key] = false;
-  if (e.key === binds.left)  { keys._dasL = false; dasTimerL = 0; }
-  if (e.key === binds.right) { keys._dasR = false; dasTimerR = 0; }
-});
+let arena=createArena();
+function createArena(){return Array.from({length:20},()=>new Array(10).fill(0));}
 
-const PIECES = {
-  I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
-  J:[[2,0,0],[2,2,2],[0,0,0]],
-  L:[[0,0,3],[3,3,3],[0,0,0]],
-  O:[[4,4],[4,4]],
-  S:[[0,5,5],[5,5,0],[0,0,0]],
-  T:[[0,6,0],[6,6,6],[0,0,0]],
-  Z:[[7,7,0],[0,7,7],[0,0,0]],
-};
-const COLORS = [null,'#00f0f0','#0000f0','#f0a000','#f0f000','#00f000','#a000f0','#f00000'];
+let player={pos:{x:3,y:0},matrix:null,type:'',rotState:0,hold:null,canHold:true,lastRotWasKick:false};
+let score=0,linesCleared=0,level=1,combo=-1,isGameOver=false,isSetting=false;
+let keys={},dasTimerL=0,dasTimerR=0,lastTime=0,dropCounter=0,lockDelay=0;
+const DAS=150,ARR=30,LOCK_MS=500;
 
-// SRS wall kick data  [fromState][dir]: array of [dx,dy] offsets
-const KICKS_JLSTZ = {
-  '0_1': [[-1,0],[-1,-1],[0,2],[-1,2]],
-  '1_0': [[1,0],[1,1],[0,-2],[1,-2]],
-  '1_2': [[1,0],[1,1],[0,-2],[1,-2]],
-  '2_1': [[-1,0],[-1,-1],[0,2],[-1,2]],
-  '2_3': [[1,0],[1,-1],[0,2],[1,2]],
-  '3_2': [[-1,0],[-1,1],[0,-2],[-1,-2]],
-  '3_0': [[-1,0],[-1,1],[0,-2],[-1,-2]],
-  '0_3': [[1,0],[1,-1],[0,2],[1,2]],
-};
-const KICKS_I = {
-  '0_1': [[-2,0],[1,0],[-2,1],[1,-2]],
-  '1_0': [[2,0],[-1,0],[2,-1],[-1,2]],
-  '1_2': [[-1,0],[2,0],[-1,-2],[2,1]],
-  '2_1': [[1,0],[-2,0],[1,2],[-2,-1]],
-  '2_3': [[2,0],[-1,0],[2,-1],[-1,2]],
-  '3_2': [[-2,0],[1,0],[-2,1],[1,-2]],
-  '3_0': [[1,0],[-2,0],[1,2],[-2,-1]],
-  '0_3': [[-1,0],[2,0],[-1,-2],[2,1]],
-};
+let pendingGarbage=0;
+let syncThrottle=0;
 
-let bag = [], nextQueue = [];
-function fillBag() {
-  let b = ['I','J','L','O','S','T','Z'];
-  for (let i = b.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [b[i],b[j]]=[b[j],b[i]]; }
-  bag.push(...b);
-}
-function getNext() {
-  while (bag.length < 14) fillBag();
-  return bag.shift();
-}
-function ensureQueue() {
-  while (nextQueue.length < 6) nextQueue.push(getNext());
-}
+const canvas=document.getElementById('tetris');
+const ctx=canvas.getContext('2d');
+const enemyCanv=document.getElementById('enemy-tetris');
+const enemyCtx=enemyCanv.getContext('2d');
+const holdCtx=document.getElementById('hold-canvas').getContext('2d');
+const nextCtx=document.getElementById('next-canvas').getContext('2d');
+ctx.scale(25,25); enemyCtx.scale(20,20); holdCtx.scale(20,20); nextCtx.scale(20,20);
 
-let arena = createArena();
-function createArena() { return Array.from({length:20}, () => new Array(10).fill(0)); }
-
-let player = {pos:{x:3,y:0}, matrix:null, type:'', rotState:0, hold:null, canHold:true};
-let score=0, linesCleared=0, level=1, isGameOver=false, isSetting=false;
-let keys={}, dasTimerL=0, dasTimerR=0, lastTime=0, dropCounter=0, lockDelay=0, lockReset=false;
-const DAS=150, ARR=30, LOCK_MS=500;
-
-const canvas = document.getElementById('tetris');
-const ctx = canvas.getContext('2d');
-const enemyCtx = document.getElementById('enemy-tetris').getContext('2d');
-const holdCtx = document.getElementById('hold-canvas').getContext('2d');
-const nextCtx = document.getElementById('next-canvas').getContext('2d');
-ctx.scale(25,25); enemyCtx.scale(25,25); holdCtx.scale(20,20); nextCtx.scale(20,20);
-
-function drawMatrix(matrix, offset, c, ghost=false) {
-  matrix.forEach((row,y) => row.forEach((v,x) => {
-    if (!v) return;
-    if (ghost) {
-      c.fillStyle = 'rgba(255,255,255,0.18)';
-      c.fillRect(x+offset.x, y+offset.y, 1, 1);
-    } else {
-      c.fillStyle = COLORS[v];
-      c.fillRect(x+offset.x, y+offset.y, 1, 1);
-      c.strokeStyle='rgba(255,255,255,0.25)'; c.lineWidth=0.04;
-      c.strokeRect(x+offset.x, y+offset.y, 1, 1);
-    }
+function drawMatrix(m,offset,c,ghost=false){
+  m.forEach((row,y)=>row.forEach((v,x)=>{
+    if(!v)return;
+    if(ghost){c.fillStyle='rgba(255,255,255,0.15)';c.fillRect(x+offset.x,y+offset.y,1,1);}
+    else{c.fillStyle=COLORS[v];c.fillRect(x+offset.x,y+offset.y,1,1);c.strokeStyle='rgba(255,255,255,0.2)';c.lineWidth=0.04;c.strokeRect(x+offset.x,y+offset.y,1,1);}
   }));
 }
 
-function collide(a, p) {
-  const [m, o] = [p.matrix, p.pos];
-  for (let y=0; y<m.length; y++) for (let x=0; x<m[y].length; x++) {
-    if (m[y][x] && (!(a[y+o.y] && a[y+o.y][x+o.x] !== undefined) || a[y+o.y][x+o.x])) return true;
-  }
-  return false;
+function collide(a,p){
+  const[m,o]=[p.matrix,p.pos];
+  for(let y=0;y<m.length;y++)for(let x=0;x<m[y].length;x++){
+    if(m[y][x]&&(!(a[y+o.y]&&a[y+o.y][x+o.x]!==undefined)||a[y+o.y][x+o.x]))return true;
+  }return false;
 }
 
-function movePlayer(dir) {
-  player.pos.x += dir;
-  if (collide(arena, player)) { player.pos.x -= dir; return false; }
-  lockDelay = 0;
-  return true;
-}
+function movePlayer(dir){player.pos.x+=dir;if(collide(arena,player)){player.pos.x-=dir;return false;}lockDelay=0;player.lastRotWasKick=false;return true;}
 
-function doRotate(dir) {
-  const prevState = player.rotState;
-  const m = rotateMatrix(player.matrix, dir);
-  const newState = ((prevState + dir) % 4 + 4) % 4;
-  const key = prevState + '_' + newState;
-  const kicks = player.type === 'I' ? KICKS_I : (player.type === 'O' ? [] : KICKS_JLSTZ);
-  const tryOffsets = [[0,0], ...(kicks[key] || [])];
-  for (const [dx, dy] of tryOffsets) {
-    const testPlayer = {pos:{x:player.pos.x+dx, y:player.pos.y+dy}, matrix:m};
-    if (!collide(arena, testPlayer)) {
-      player.matrix = m;
-      player.pos.x += dx; player.pos.y += dy;
-      player.rotState = newState;
-      lockDelay = 0;
-      return;
+function doRotate(dir){
+  const prev=player.rotState;
+  const m=rotateMatrix(player.matrix,dir);
+  const ns=((prev+dir)%4+4)%4;
+  const key=prev+'_'+ns;
+  const kicks=player.type==='I'?KICKS_I:(player.type==='O'?[]:KICKS_JLSTZ);
+  const offsets=[[0,0],...(kicks[key]||[])];
+  for(let i=0;i<offsets.length;i++){
+    const[dx,dy]=offsets[i];
+    const tp={pos:{x:player.pos.x+dx,y:player.pos.y+dy},matrix:m};
+    if(!collide(arena,tp)){
+      player.matrix=m;player.pos.x+=dx;player.pos.y+=dy;player.rotState=ns;
+      player.lastRotWasKick=(i>0);
+      lockDelay=0;return;
     }
   }
 }
 
-function rotateMatrix(m, dir) {
-  const result = m.map(row => [...row]);
-  for (let y=0; y<result.length; y++) for (let x=0; x<y; x++) [result[x][y],result[y][x]]=[result[y][x],result[x][y]];
-  if (dir > 0) result.forEach(r => r.reverse());
-  else { result.reverse(); for (let y=0; y<result.length; y++) for (let x=0; x<y; x++) [result[x][y],result[y][x]]=[result[y][x],result[x][y]]; result.forEach(r => r.reverse()); }
-  return result;
+function rotateMatrix(m,dir){
+  const r=m.map(row=>[...row]);
+  if(dir>0){for(let y=0;y<r.length;y++)for(let x=0;x<y;x++)[r[x][y],r[y][x]]=[r[y][x],r[x][y]];r.forEach(row=>row.reverse());}
+  else{r.forEach(row=>row.reverse());for(let y=0;y<r.length;y++)for(let x=0;x<y;x++)[r[x][y],r[y][x]]=[r[y][x],r[x][y]];}
+  return r;
 }
 
-function doHardDrop() {
-  while (!collide(arena, player)) player.pos.y++;
-  player.pos.y--;
-  lockPiece();
+function doHardDrop(){while(!collide(arena,player))player.pos.y++;player.pos.y--;lockPiece();}
+
+function doHold(){
+  if(!player.canHold)return;
+  if(!player.hold){player.hold=player.type;spawnNext();}
+  else{const t=player.hold;player.hold=player.type;spawnPiece(t);}
+  player.canHold=false;
+  holdCtx.fillStyle='#000';holdCtx.fillRect(0,0,4,4);
+  drawMatrix(PIECES[player.hold],{x:0,y:0},holdCtx);
 }
 
-function doHold() {
-  if (!player.canHold) return;
-  if (!player.hold) {
-    player.hold = player.type;
-    spawnNext();
+function lockPiece(){
+  const tspinType = checkTSpin(arena, player);
+  player.matrix.forEach((row,y)=>row.forEach((v,x)=>{if(v)arena[y+player.pos.y][x+player.pos.x]=v;}));
+  let cleared=0;
+  for(let y=arena.length-1;y>=0;y--){if(arena[y].every(v=>v)){arena.splice(y,1);arena.unshift(new Array(10).fill(0));cleared++;y++;}}
+
+  let attack=0;
+  let label='';
+  if(cleared){
+    combo++;
+    linesCleared+=cleared;
+    const comboBonus=combo>0?combo:0;
+    if(tspinType==='tspin'){
+      const pts=[0,800,1200,1600];
+      score+=(pts[cleared]||1600)*level;
+      const names=['','T-SPIN\nSINGLE','T-SPIN\nDOUBLE','T-SPIN\nTRIPLE'];
+      label=names[cleared]||'T-SPIN';
+      attack=cleared===1?2:cleared===2?4:6;
+    } else if(tspinType==='mini'){
+      score+=400*level;label='MINI\nT-SPIN';attack=1;
+    } else {
+      const pts=[0,100,300,500,800];
+      score+=(pts[cleared]||800)*level;
+      if(cleared===4){label='TETRIS';attack=4;}
+      else if(cleared===3){label='TRIPLE';attack=2;}
+      else if(cleared===2){label='DOUBLE';attack=1;}
+      else{label='SINGLE';attack=0;}
+    }
+    attack+=comboBonus;
+    level=Math.floor(linesCleared/10)+1;
+    document.getElementById('score').textContent=score;
+    document.getElementById('lines').textContent=linesCleared;
+    document.getElementById('level').textContent=level;
+    document.getElementById('combo').textContent=combo;
+    if(label)showTSpinLabel(label);
+    if(attack>0&&!isSolo)sendAttack(attack);
   } else {
-    const t = player.hold;
-    player.hold = player.type;
-    spawnPiece(t);
+    combo=-1;
+    document.getElementById('combo').textContent='0';
+    // add pending garbage
+    if(pendingGarbage>0){addGarbage(pendingGarbage);pendingGarbage=0;}
   }
-  player.canHold = false;
-  holdCtx.fillStyle='#000'; holdCtx.fillRect(0,0,4,4);
-  drawMatrix(PIECES[player.hold], {x:0,y:0}, holdCtx);
-}
-
-function lockPiece() {
-  player.matrix.forEach((row,y) => row.forEach((v,x) => { if (v) arena[y+player.pos.y][x+player.pos.x]=v; }));
-  let cleared = 0;
-  for (let y=arena.length-1; y>=0; y--) {
-    if (arena[y].every(v => v)) { arena.splice(y,1); arena.unshift(new Array(10).fill(0)); cleared++; y++; }
-  }
-  if (cleared) {
-    linesCleared += cleared;
-    const pts = [0,100,300,500,800];
-    score += (pts[cleared] || 800) * level;
-    level = Math.floor(linesCleared/10)+1;
-    document.getElementById('score').textContent = score;
-    document.getElementById('lines').textContent = linesCleared;
-    document.getElementById('level').textContent = level;
-  }
-  lockDelay = 0;
+  lockDelay=0;
   spawnNext();
 }
 
-function spawnNext() {
-  ensureQueue();
-  const type = nextQueue.shift();
-  ensureQueue();
-  spawnPiece(type);
-  drawNextQueue();
+function showTSpinLabel(txt){
+  const el=document.getElementById('tspin-label');
+  el.innerHTML=txt.replace('\n','<br>');
+  el.style.opacity='1';
+  setTimeout(()=>el.style.opacity='0',900);
 }
 
-function spawnPiece(type) {
-  player.type = type;
-  player.matrix = PIECES[type].map(r=>[...r]);
-  player.rotState = 0;
-  player.pos = {x:3, y:0};
-  if (collide(arena, player)) {
-    isGameOver = true;
-    document.getElementById('gameover-msg').textContent = 'GAME OVER';
-    document.getElementById('gameover').classList.add('show');
+function addGarbage(lines){
+  const gap=Math.floor(Math.random()*10);
+  for(let i=0;i<lines;i++){
+    arena.shift();
+    const row=new Array(10).fill(8);
+    row[gap]=0;
+    arena.push(row);
   }
+  const flash=document.getElementById('attack-flash');
+  flash.style.opacity='1';setTimeout(()=>flash.style.opacity='0',200);
 }
 
-function drawNextQueue() {
-  nextCtx.fillStyle='#000'; nextCtx.fillRect(0,0,4,20);
-  nextQueue.slice(0,5).forEach((type,i) => drawMatrix(PIECES[type], {x:0, y:i*4}, nextCtx));
+function sendAttack(lines){
+  if(!roomId||!enemyId||isSolo)return;
+  set(ref(db,`rooms/${roomId}/attack/${myId}`),{to:enemyId,lines,t:Date.now()});
 }
 
-function getDropInterval() { return Math.max(50, 800 - (level-1)*70); }
-
-function getGhost() {
-  const g = {pos:{x:player.pos.x,y:player.pos.y}, matrix:player.matrix};
-  while (!collide(arena, g)) g.pos.y++;
-  g.pos.y--;
-  return g;
+function spawnNext(){ensureQueue();const type=nextQueue.shift();ensureQueue();spawnPiece(type);drawNextQueue();}
+function spawnPiece(type){
+  player.type=type;player.matrix=PIECES[type].map(r=>[...r]);player.rotState=0;
+  player.pos={x:3,y:0};player.lastRotWasKick=false;
+  if(collide(arena,player)){setGameOver(false);}
 }
+function drawNextQueue(){nextCtx.fillStyle='#000';nextCtx.fillRect(0,0,4,20);nextQueue.slice(0,5).forEach((t,i)=>drawMatrix(PIECES[t],{x:0,y:i*4},nextCtx));}
+function getGhost(){const g={pos:{x:player.pos.x,y:player.pos.y},matrix:player.matrix};while(!collide(arena,g))g.pos.y++;g.pos.y--;return g;}
+function getDropInterval(){return Math.max(50,800-(level-1)*70);}
 
-function update(time=0) {
-  if (isGameOver || isSetting) { requestAnimationFrame(update); return; }
-  const dt = Math.min(time-lastTime, 50);
-  lastTime = time;
-
-  // DAS
-  if (keys[binds.left])  { dasTimerL += dt; if (dasTimerL > DAS) { movePlayer(-1); dasTimerL = DAS-ARR; } }
-  else dasTimerL = 0;
-  if (keys[binds.right]) { dasTimerR += dt; if (dasTimerR > DAS) { movePlayer(1); dasTimerR = DAS-ARR; } }
-  else dasTimerR = 0;
-
-  const interval = keys[binds.softDrop] ? 50 : getDropInterval();
-  dropCounter += dt;
-  if (dropCounter >= interval) {
+function update(time=0){
+  if(isGameOver||isSetting){requestAnimationFrame(update);return;}
+  const dt=Math.min(time-lastTime,50);lastTime=time;
+  if(keys[binds.left]){dasTimerL+=dt;if(dasTimerL>DAS){movePlayer(-1);dasTimerL=DAS-ARR;}}else dasTimerL=0;
+  if(keys[binds.right]){dasTimerR+=dt;if(dasTimerR>DAS){movePlayer(1);dasTimerR=DAS-ARR;}}else dasTimerR=0;
+  const interval=keys[binds.softDrop]?50:getDropInterval();
+  dropCounter+=dt;
+  if(dropCounter>=interval){
     player.pos.y++;
-    if (collide(arena, player)) {
-      player.pos.y--;
-      lockDelay += dt + (dropCounter - interval);
-      if (lockDelay >= LOCK_MS) lockPiece();
-    } else { lockDelay = 0; }
-    dropCounter = 0;
-  } else if (collide(arena, {pos:{x:player.pos.x,y:player.pos.y+1}, matrix:player.matrix})) {
-    lockDelay += dt;
-    if (lockDelay >= LOCK_MS) lockPiece();
+    if(collide(arena,player)){player.pos.y--;lockDelay+=dt+(dropCounter-interval);if(lockDelay>=LOCK_MS)lockPiece();}
+    else lockDelay=0;
+    dropCounter=0;
+  } else if(collide(arena,{pos:{x:player.pos.x,y:player.pos.y+1},matrix:player.matrix})){
+    lockDelay+=dt;if(lockDelay>=LOCK_MS)lockPiece();
   }
-
-  ctx.fillStyle='#000'; ctx.fillRect(0,0,10,20);
-  drawMatrix(arena, {x:0,y:0}, ctx);
-  drawMatrix(player.matrix, getGhost().pos, ctx, true);
-  drawMatrix(player.matrix, player.pos, ctx);
+  ctx.fillStyle='#000';ctx.fillRect(0,0,10,20);
+  drawMatrix(arena,{x:0,y:0},ctx);
+  drawMatrix(player.matrix,getGhost().pos,ctx,true);
+  drawMatrix(player.matrix,player.pos,ctx);
+  syncThrottle+=dt;
+  if(syncThrottle>100&&roomId){
+    syncThrottle=0;
+    set(ref(db,`rooms/${roomId}/players/${myId}`),{arena:arena.map(r=>[...r]),pos:player.pos,matrix:player.matrix,score,lost:false});
+  }
   requestAnimationFrame(update);
 }
 
-function restartGame() {
-  arena = createArena();
-  bag = []; nextQueue = [];
-  player = {pos:{x:3,y:0}, matrix:null, type:'', rotState:0, hold:null, canHold:true};
-  score=0; linesCleared=0; level=1; isGameOver=false;
-  keys={}; dasTimerL=0; dasTimerR=0; dropCounter=0; lockDelay=0;
-  document.getElementById('score').textContent = '0';
-  document.getElementById('lines').textContent = '0';
-  document.getElementById('level').textContent = '1';
-  document.getElementById('gameover').classList.remove('show');
-  holdCtx.fillStyle='#000'; holdCtx.fillRect(0,0,4,4);
-  ensureQueue();
-  spawnNext();
-  lastTime = 0;
+function setGameOver(win){
+  isGameOver=true;
+  if(roomId)set(ref(db,`rooms/${roomId}/players/${myId}/lost`),true);
+  if(win){document.getElementById('gameover-msg').textContent='YOU WIN!';document.getElementById('gameover').style.color='#0f8';}
+  else document.getElementById('gameover-msg').textContent='GAME OVER';
+  document.getElementById('gameover').classList.add('show');
 }
 
-window.openSettings = openSettings;
-window.closeSettings = closeSettings;
-window.restartGame = restartGame;
+function restartGame(){
+  arena=createArena();bag=[];nextQueue=[];
+  player={pos:{x:3,y:0},matrix:null,type:'',rotState:0,hold:null,canHold:true,lastRotWasKick:false};
+  score=0;linesCleared=0;level=1;combo=-1;isGameOver=false;pendingGarbage=0;
+  keys={};dasTimerL=0;dasTimerR=0;dropCounter=0;lockDelay=0;
+  document.getElementById('score').textContent='0';document.getElementById('lines').textContent='0';
+  document.getElementById('level').textContent='1';document.getElementById('combo').textContent='0';
+  document.getElementById('gameover').classList.remove('show');
+  document.getElementById('enemy-gameover').classList.remove('show');
+  holdCtx.fillStyle='#000';holdCtx.fillRect(0,0,4,4);
+  ensureQueue();spawnNext();lastTime=0;
+  if(roomId)set(ref(db,`rooms/${roomId}/players/${myId}/lost`),false);
+}
 
-restartGame();
-update();
+// ===== lobby =====
+window.joinRoom = function(){
+  const room=(document.getElementById('room-input').value||'').trim();
+  const name=(document.getElementById('name-input').value||'').trim()||'Player';
+  if(!room){alert('ルーム名を入力してください');return;}
+  myName=name;roomId=room;
+  document.getElementById('my-name-label').textContent=name;
+  document.getElementById('lobby-screen').style.display='none';
+  document.getElementById('game-screen').style.display='flex';
+  set(ref(db,`rooms/${room}/players/${myId}`),{name,arena:createArena().map(r=>[...r]),pos:{x:3,y:0},matrix:PIECES.T,score:0,lost:false});
+  onDisconnect(ref(db,`rooms/${room}/players/${myId}`)).remove();
+  // watch room
+  onValue(ref(db,`rooms/${room}/players`),snap=>{
+    const d=snap.val()||{};
+    const ids=Object.keys(d).filter(k=>k!==myId);
+    if(ids.length>0){
+      enemyId=ids[0];
+      const en=d[enemyId];
+      document.getElementById('enemy-name-label').textContent=en.name||'ENEMY';
+      document.getElementById('enemy-score').textContent=en.score||0;
+      enemyCtx.fillStyle='#000';enemyCtx.fillRect(0,0,10,20);
+      if(en.arena)drawMatrix(en.arena,{x:0,y:0},enemyCtx);
+      if(en.matrix)drawMatrix(en.matrix,en.pos||{x:0,y:0},enemyCtx);
+      if(en.lost&&!isGameOver){document.getElementById('win-msg').textContent='YOU WIN!';document.getElementById('enemy-gameover').classList.add('show');setGameOver(true);}
+      document.getElementById('status-bar').textContent=`対戦中: ${en.name||'ENEMY'} vs ${myName}`;
+    } else {
+      enemyId=null;
+      document.getElementById('status-bar').textContent='待機中... 相手を待っています';
+      enemyCtx.fillStyle='#111';enemyCtx.fillRect(0,0,10,20);
+      enemyCtx.fillStyle='#333';enemyCtx.font='0.7px sans-serif';enemyCtx.fillText('Waiting...',0.5,10);
+    }
+  });
+  // watch attack
+  onValue(ref(db,`rooms/${room}/attack`),snap=>{
+    const d=snap.val();
+    if(!d)return;
+    for(const sid in d){
+      if(sid!==myId&&d[sid].to===myId){
+        const atk=d[sid];
+        if(Date.now()-atk.t<5000){pendingGarbage+=atk.lines;}
+        remove(ref(db,`rooms/${room}/attack/${sid}`));
+      }
+    }
+  });
+  ensureQueue();spawnNext();lastTime=0;update();
+};
+
+window.startSolo = function(){
+  isSolo=true;roomId=null;enemyId=null;myName='YOU';
+  document.getElementById('lobby-screen').style.display='none';
+  document.getElementById('game-screen').style.display='flex';
+  document.getElementById('status-bar').textContent='SOLO PLAY';
+  document.getElementById('enemy-name-label').textContent='CPU';
+  enemyCtx.fillStyle='#111';enemyCtx.fillRect(0,0,10,20);
+  ensureQueue();spawnNext();lastTime=0;update();
+};
+
+// ===== key settings =====
+window.openSettings = function(){
+  isSetting=true;
+  const list=document.getElementById('config-list');list.innerHTML='';
+  for(const k in LABELS){
+    const row=document.createElement('div');row.className='bind-row';
+    row.innerHTML=`<span style="color:#aaa">${LABELS[k]}</span><span class="bind-key" id="bk-${k}" onclick="startRemap('${k}')">${binds[k]===' '?'Space':binds[k]}</span>`;
+    list.appendChild(row);
+  }
+  document.getElementById('modal').style.display='block';
+};
+window.closeSettings = function(){
+  if(waitingBind){document.getElementById('bk-'+waitingBind).classList.remove('waiting');waitingBind=null;}
+  localStorage.setItem('tetris_binds3',JSON.stringify(binds));
+  document.getElementById('modal').style.display='none';isSetting=false;
+};
+window.startRemap = function(action){
+  if(waitingBind)document.getElementById('bk-'+waitingBind).classList.remove('waiting');
+  waitingBind=action;const el=document.getElementById('bk-'+action);
+  el.textContent='...';el.classList.add('waiting');
+};
+
+window.addEventListener('keydown',e=>{
+  if(waitingBind){e.preventDefault();binds[waitingBind]=e.key;const el=document.getElementById('bk-'+waitingBind);if(el){el.textContent=e.key===' '?'Space':e.key;el.classList.remove('waiting');}waitingBind=null;return;}
+  if(isSetting||isGameOver)return;
+  keys[e.key]=true;
+  if(e.key===binds.rotateRight){e.preventDefault();doRotate(1);}
+  if(e.key===binds.rotateLeft){e.preventDefault();doRotate(-1);}
+  if(e.key===binds.hardDrop){e.preventDefault();doHardDrop();}
+  if(e.key===binds.hold){e.preventDefault();doHold();}
+  if(e.key===binds.left&&!keys._dasL){keys._dasL=true;movePlayer(-1);dasTimerL=0;}
+  if(e.key===binds.right&&!keys._dasR){keys._dasR=true;movePlayer(1);dasTimerR=0;}
+});
+window.addEventListener('keyup',e=>{keys[e.key]=false;if(e.key===binds.left)keys._dasL=false;if(e.key===binds.right)keys._dasR=false;});
+window.restartGame=restartGame;
 </script>
 </body>
 </html>
