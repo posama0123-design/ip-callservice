@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>擬似 寿司打 WebGL版風</title>
+    <style>
+        :root {
+            --bg-color: #A3B18A;
+            --wood-color: #E9C46A;
+            --panel-bg: #FEFAE0;
+        }
+        body {
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+        }
+        #game-container {
+            width: 600px;
+            height: 450px;
+            background-color: var(--bg-color);
+            border: 10px solid #D4A373;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        /* 各画面の共通スタイル */
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .active { display: flex; }
+
+        /* タイトル画面 */
+        .title-logo { font-size: 80px; font-weight: bold; margin-bottom: 20px; color: #111; }
+        .menu-btn {
+            background: #fdf0d5;
+            border: 3px solid #6c584c;
+            border-radius: 10px;
+            padding: 10px 40px;
+            margin: 5px;
+            font-size: 20px;
+            cursor: pointer;
+            width: 200px;
+            text-align: center;
+        }
+        .menu-btn:hover { background: #faedcd; }
+
+        /* コース選択・遊び方・設定のパネル */
+        .panel {
+            background-color: var(--panel-bg);
+            width: 90%;
+            height: 80%;
+            border-radius: 15px;
+            border: 4px solid #bc6c25;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+        }
+        .back-btn {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+
+        /* 設定画面 */
+        .settings-list { text-align: left; list-style: none; padding: 0; }
+        .settings-list li { margin: 10px 0; font-size: 18px; }
+
+        /* ゲーム画面（簡易版） */
+        #typing-area { font-size: 30px; margin-top: 20px; }
+        #word-display { color: #bc6c25; font-weight: bold; }
+        #input-display { color: #333; border-bottom: 2px solid #333; min-width: 100px; display: inline-block; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="screen-title" class="screen active">
+        <div class="title-logo">寿司打</div>
+        <div class="menu-btn" onclick="showScreen('screen-course')">スタート</div>
+        <div class="menu-btn" onclick="showScreen('screen-howto')">遊び方</div>
+        <div class="menu-btn" onclick="showScreen('screen-settings')">設定</div>
+    </div>
+
+    <div id="screen-course" class="screen">
+        <div class="panel">
+            <h3>難易度を選んでください</h3>
+            <div class="menu-btn" onclick="startGame(3000)">お手軽 3,000円</div>
+            <div class="menu-btn" onclick="startGame(5000)">お勧め 5,000円</div>
+            <div class="menu-btn" onclick="startGame(10000)">高級 10,000円</div>
+            <button class="back-btn" onclick="showScreen('screen-title')">タイトルに戻る</button>
+        </div>
+    </div>
+
+    <div id="screen-howto" class="screen">
+        <div class="panel">
+            <h2>遊び方</h2>
+            <p>お寿司が流れてくる間にタイピングしてください。</p>
+            <ul>
+                <li>ミスなく打つと連打メーターが溜まります。</li>
+                <li>制限時間内にたくさん食べて元を取りましょう！</li>
+            </ul>
+            <button class="back-btn" onclick="showScreen('screen-title')">タイトルに戻る</button>
+        </div>
+    </div>
+
+    <div id="screen-settings" class="screen" style="background: rgba(0,0,0,0.8);">
+        <div class="panel" style="background: #111; color: white; border-color: #555;">
+            <h3>⚙ タイピングの設定</h3>
+            <ul class="settings-list">
+                <li><input type="checkbox" checked> ローマ字表示</li>
+                <li><input type="checkbox" checked> ふりがな表示</li>
+                <li><input type="checkbox" checked> BGM</li>
+                <li><input type="checkbox" checked> 効果音</li>
+            </ul>
+            <button class="back-btn" onclick="showScreen('screen-title')">閉じる</button>
+        </div>
+    </div>
+
+    <div id="screen-game" class="screen">
+        <div id="timer">残り時間: <span id="time-left">60</span>秒</div>
+        <div id="typing-area">
+            <div id="word-display">sushi</div>
+            <div id="input-display"></div>
+        </div>
+        <button class="back-btn" onclick="showScreen('screen-title')">やめる</button>
+    </div>
+</div>
+
+<script>
+    const words = ["sushi", "maguro", "ebiten", "tamago", "ocha", "wasabi"];
+    let currentWord = "";
+    let userInput = "";
+    let timeLeft = 60;
+    let timerInterval;
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function startGame(course) {
+        showScreen('screen-game');
+        timeLeft = course === 10000 ? 120 : (course === 5000 ? 90 : 60);
+        nextWord();
+        startTimer();
+    }
+
+    function nextWord() {
+        currentWord = words[Math.floor(Math.random() * words.length)];
+        userInput = "";
+        updateDisplay();
+    }
+
+    function updateDisplay() {
+        document.getElementById('word-display').innerText = currentWord;
+        document.getElementById('input-display').innerText = userInput;
+        document.getElementById('time-left').innerText = timeLeft;
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateDisplay();
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                alert("タイムアップ！");
+                showScreen('screen-title');
+            }
+        }, 1000);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (!document.getElementById('screen-game').classList.contains('active')) return;
+        
+        const key = e.key.toLowerCase();
+        if (key === currentWord[userInput.length]) {
+            userInput += key;
+            if (userInput === currentWord) {
+                nextWord();
+            }
+            updateDisplay();
+        }
+    });
+</script>
+
+</body>
+</html>
